@@ -1,12 +1,13 @@
 # flutter_bluetooth_plugin
 
-A Flutter Bluetooth plugin backed by native Android, iOS, macOS APIs and the
-browser Web Bluetooth API.
+A Flutter Bluetooth plugin backed by native Android, iOS, macOS, Windows BLE
+APIs and the browser Web Bluetooth API.
 
 The plugin exposes a cross-platform API for Bluetooth permissions, adapter state,
 scanning/device selection, connections, GATT client operations, GATT
 server/peripheral mode, advertising, notifications, RSSI, MTU, PHY, Android
-bonding, Android connection priority, and Android Classic RFCOMM sockets.
+bonding, Android connection priority, Android Classic RFCOMM sockets, and
+Windows BLE central/GATT client operations.
 
 ## Platform coverage
 
@@ -23,17 +24,27 @@ bonding, Android connection priority, and Android Classic RFCOMM sockets.
   characteristic/descriptor IO, notifications, RSSI, local GATT services, and
   advertising with local name/service UUIDs. macOS uses CoreBluetooth UUIDs for
   device IDs and does not expose Bluetooth adapter addresses.
+- Windows: WinRT Bluetooth LE adapter state, BLE advertisement scanning, paired
+  BLE device enumeration, BLE GATT client connection bootstrap, service
+  discovery, characteristic/descriptor reads and writes, characteristic
+  notifications, Bluetooth settings launch, and cached advertisement RSSI.
+  Windows currently does not implement Classic RFCOMM, local GATT server, BLE
+  advertising/peripheral mode, MTU negotiation, PHY control, bonding management,
+  or connection priority hints.
 - Web: Web Bluetooth BLE Central/GATT Client support in secure contexts.
   `startScan()` opens the browser device chooser and emits the selected device
   as one scan result. Web does not support passive/background scanning, RSSI,
   MTU negotiation, PHY, bonding management, BLE advertising/peripheral mode, or
   Classic Bluetooth.
 
-Some platform APIs do not exist publicly on every system. iOS and macOS cannot
-enable Bluetooth programmatically, do not expose Classic Bluetooth RFCOMM,
-do not expose Android-style bonding or connection priority, and do not expose
-public MTU negotiation. Web Bluetooth is chooser-based and exposes only
-site-authorized BLE GATT devices/services. Unsupported APIs return `false`,
+Some platform APIs do not exist publicly on every system. iOS, macOS, and
+Windows cannot enable Bluetooth programmatically through this plugin; iOS and
+macOS do not expose Classic Bluetooth RFCOMM; Windows Classic RFCOMM is not
+implemented here; and non-Android platforms do not expose Android-style bonding
+or connection priority. iOS/macOS do not expose public MTU negotiation, while
+Windows/Web return `0` for unavailable MTU and write-length values. Web
+Bluetooth is chooser-based and exposes only site-authorized BLE GATT
+devices/services. Unsupported APIs return `false`,
 empty lists/streams, no-op for safe stop/clear calls, `0` for unavailable MTU or
 write-length values, or an unsupported error for operations that cannot be
 represented on that platform.
@@ -70,6 +81,12 @@ context (HTTPS or localhost). `requestPermissions()` only reports status; call
 device chooser. Pass the GATT service UUIDs you need so the browser grants
 access to those services after connection.
 
+For Windows desktop, Bluetooth access is handled by the OS and WinRT device
+APIs. `requestPermissions()` reports `bluetooth: granted` when a BLE adapter is
+available and `notApplicable` otherwise; it does not display a runtime prompt.
+Use `openBluetoothSettings()` to send users to the Windows Bluetooth settings
+page when Bluetooth is off.
+
 For macOS, the host app should include a usage description and, when sandboxed,
 the Bluetooth entitlement:
 
@@ -91,7 +108,7 @@ final bluetooth = FlutterBluetoothPlugin();
 await bluetooth.requestPermissions();
 
 if (await bluetooth.getAdapterState() != BluetoothAdapterState.poweredOn) {
-  await bluetooth.requestEnable(); // Android only; iOS/macOS return false.
+  await bluetooth.requestEnable(); // Android only; iOS/macOS/Windows/Web return false.
 }
 
 final sub = bluetooth.scanResults.listen((result) {
