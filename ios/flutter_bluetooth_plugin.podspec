@@ -5,9 +5,9 @@
 Pod::Spec.new do |s|
   s.name             = 'flutter_bluetooth_plugin'
   s.version          = '0.0.1'
-  s.summary          = 'A new Flutter project.'
+  s.summary          = 'Native Android and iOS Bluetooth APIs for Flutter.'
   s.description      = <<-DESC
-A new Flutter project.
+Flutter Bluetooth plugin backed by CoreBluetooth on iOS and native Bluetooth APIs on Android.
                        DESC
   s.homepage         = 'http://example.com'
   s.license          = { :file => '../LICENSE' }

@@ -19,6 +19,8 @@ android {
         applicationId = "com.yuanzhihong.flutter_bluetooth_plugin_example"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // Flutter 3.44 supports Android API 24+; keep the example aligned with
+        // the plugin's minimum so compatibility issues surface during builds.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

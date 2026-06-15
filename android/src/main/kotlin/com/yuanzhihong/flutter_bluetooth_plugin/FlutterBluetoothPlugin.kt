@@ -16,7 +16,6 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
-import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
@@ -1558,7 +1557,7 @@ class FlutterBluetoothPlugin :
         }
         val sent = devices.map { device ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                server.notifyCharacteristicChanged(device, characteristic, confirm, value) == BluetoothStatusCodes.SUCCESS
+                server.notifyCharacteristicChanged(device, characteristic, confirm, value) == ANDROID_STATUS_SUCCESS
             } else {
                 @Suppress("DEPRECATION")
                 server.notifyCharacteristicChanged(device, characteristic, confirm)
@@ -2005,7 +2004,7 @@ class FlutterBluetoothPlugin :
         writeType: Int,
     ): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            gatt.writeCharacteristic(characteristic, value, writeType) == BluetoothStatusCodes.SUCCESS
+            gatt.writeCharacteristic(characteristic, value, writeType) == ANDROID_STATUS_SUCCESS
         } else {
             @Suppress("DEPRECATION")
             characteristic.value = value
@@ -2022,7 +2021,7 @@ class FlutterBluetoothPlugin :
         value: ByteArray,
     ): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            gatt.writeDescriptor(descriptor, value) == BluetoothStatusCodes.SUCCESS
+            gatt.writeDescriptor(descriptor, value) == ANDROID_STATUS_SUCCESS
         } else {
             @Suppress("DEPRECATION")
             descriptor.value = value
@@ -2133,6 +2132,7 @@ class FlutterBluetoothPlugin :
     companion object {
         private const val REQUEST_PERMISSIONS_CODE = 8711
         private const val REQUEST_ENABLE_CODE = 8712
+        private const val ANDROID_STATUS_SUCCESS = 0
         private val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
     }
 }

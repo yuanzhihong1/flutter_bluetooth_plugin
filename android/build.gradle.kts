@@ -28,7 +28,7 @@ plugins {
 android {
     namespace = "com.yuanzhihong.flutter_bluetooth_plugin"
 
-    compileSdk = 36
+    compileSdk = flutter.compileSdkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -45,7 +45,7 @@ android {
     }
 
     defaultConfig {
-        minSdk = 24
+        minSdk = flutter.minSdkVersion
     }
 
     testOptions {
