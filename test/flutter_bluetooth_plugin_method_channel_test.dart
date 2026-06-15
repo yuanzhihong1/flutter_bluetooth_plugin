@@ -5,7 +5,8 @@ import 'package:flutter_bluetooth_plugin/flutter_bluetooth_plugin_method_channel
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  MethodChannelFlutterBluetoothPlugin platform = MethodChannelFlutterBluetoothPlugin();
+  MethodChannelFlutterBluetoothPlugin platform =
+      MethodChannelFlutterBluetoothPlugin();
   const MethodChannel channel = MethodChannel('flutter_bluetooth_plugin');
 
   setUp(() {
