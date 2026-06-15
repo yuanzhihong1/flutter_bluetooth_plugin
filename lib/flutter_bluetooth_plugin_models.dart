@@ -63,7 +63,7 @@ enum BluetoothPermissionStatus {
 /// 扫描模式。
 ///
 /// [ble] 为默认值和跨平台推荐值；[classic] 与 [dual] 的 Classic 部分仅 Android 有意义，
-/// iOS/macOS/Windows/Web 不支持 Classic Bluetooth。Windows/Web 的 [dual] 仅使用 BLE 部分。
+/// iOS/macOS/Linux/Windows/Web 不支持 Classic Bluetooth。Linux/Windows/Web 的 [dual] 仅使用 BLE 部分。
 enum BluetoothScanMode {
   /// 仅扫描 BLE 设备，默认值，跨平台推荐。
   ble,
@@ -71,7 +71,7 @@ enum BluetoothScanMode {
   /// 仅扫描 Android Classic Bluetooth 设备；其它平台通常返回不支持。
   classic,
 
-  /// Android 上同时扫描 BLE 与 Classic 设备；Windows/Web 仅使用 BLE 部分；耗电和事件量更高。
+  /// Android 上同时扫描 BLE 与 Classic 设备；Linux/Windows/Web 仅使用 BLE 部分；耗电和事件量更高。
   dual,
 }
 
@@ -95,7 +95,7 @@ enum BluetoothConnectionState {
 
 /// Android 配对/绑定状态。
 ///
-/// iOS/macOS/Windows/Web 不公开可管理的配对状态，通常不会产生该事件。
+/// iOS/macOS/Windows/Web 不公开可管理的配对状态；Linux/Android 可能产生该事件。
 enum BluetoothBondState {
   /// 未绑定。
   none,
@@ -121,7 +121,7 @@ enum BluetoothWriteType {
 
 /// Android BLE 连接优先级。
 ///
-/// 该枚举主要用于 `requestConnectionPriority`；iOS/macOS/Windows/Web 会忽略并返回不支持。
+/// 该枚举主要用于 `requestConnectionPriority`；iOS/macOS/Linux/Windows/Web 会忽略并返回不支持。
 enum BluetoothConnectionPriority {
   /// 均衡模式，常规业务推荐值。
   balanced,
@@ -242,8 +242,9 @@ Map<String, List<int>> _asServiceData(Object? value) {
 
 /// 蓝牙设备摘要信息。
 ///
-/// Android 的 [id] 通常为 MAC 地址；iOS/macOS 的 [id] 为 CoreBluetooth peripheral UUID；
-/// Web 的 [id] 为浏览器生成的站点内设备 ID，且不公开真实蓝牙地址。
+/// Android 的 [id] 通常为 MAC 地址；Linux 通常为 BlueZ Address 或 DBus object path；
+/// iOS/macOS 的 [id] 为 CoreBluetooth peripheral UUID；Web 的 [id] 为浏览器生成的站点内设备 ID，
+/// 且不公开真实蓝牙地址。
 class BluetoothDevice {
   /// 创建设备信息。
   ///
@@ -281,7 +282,8 @@ class BluetoothDevice {
     );
   }
 
-  /// 设备标识。Android 通常为 MAC，iOS/macOS 为 peripheral UUID，Web 为浏览器生成 ID。
+  /// 设备标识。Android 通常为 MAC，Linux 通常为 BlueZ Address，iOS/macOS 为 peripheral UUID，
+  /// Web 为浏览器生成 ID。
   final String id;
 
   /// 设备名称，可能为空。
@@ -861,7 +863,7 @@ enum BluetoothTxPowerLevel {
 
 /// BLE PHY 类型。
 ///
-/// Android 8.0+ 可读取/设置；iOS/macOS/Windows/Web 通常返回 [unknown]。
+/// Android 8.0+ 可读取/设置；iOS/macOS/Linux/Windows/Web 通常返回 [unknown]。
 enum BluetoothPhy {
   /// LE 1M PHY，兼容性最好，默认回退推荐。
   le1m,
@@ -894,8 +896,10 @@ class BluetoothAdapterInfo {
   /// 参数：
   /// - [isSupported]：是否支持蓝牙，无默认值。
   /// - [state]：当前适配器状态，无默认值。
-  /// - [name]：适配器名称，默认 `null`。Android 需要连接权限；iOS/macOS/Windows/Web 通常不公开。
-  /// - [address]：适配器地址，默认 `null`。Android 可能受系统限制；iOS/macOS/Web 不公开；Windows 可能返回本机蓝牙地址。
+  /// - [name]：适配器名称，默认 `null`。Android 需要连接权限；Linux 可能返回 BlueZ 名称；
+  ///   iOS/macOS/Windows/Web 通常不公开。
+  /// - [address]：适配器地址，默认 `null`。Android 可能受系统限制；Linux/Windows 可能返回本机蓝牙地址；
+  ///   iOS/macOS/Web 不公开。
   /// - [isBleSupported]：是否支持 BLE，默认 `false`。
   /// - [isMultipleAdvertisementSupported]：是否支持多广播，默认 `false`；主要 Android 能力。
   /// - [isOffloadedFilteringSupported]：是否支持硬件离线过滤，默认 `false`；Android 能力。
@@ -957,10 +961,10 @@ class BluetoothAdapterInfo {
   /// 当前适配器状态。
   final BluetoothAdapterState state;
 
-  /// 适配器名称，默认 `null`；Web/Windows 通常不公开。
+  /// 适配器名称，默认 `null`；Linux 可能返回 BlueZ 名称，Web/Windows 通常不公开。
   final String? name;
 
-  /// 适配器地址，默认 `null`；Web 不公开，Windows 可能返回本机蓝牙地址。
+  /// 适配器地址，默认 `null`；Web 不公开，Linux/Windows 可能返回本机蓝牙地址。
   final String? address;
 
   /// 是否支持 BLE，默认 `false`。

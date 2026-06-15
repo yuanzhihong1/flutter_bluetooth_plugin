@@ -1,13 +1,14 @@
 # flutter_bluetooth_plugin
 
-A Flutter Bluetooth plugin backed by native Android, iOS, macOS, Windows BLE
-APIs and the browser Web Bluetooth API.
+A Flutter Bluetooth plugin backed by native Android, iOS, macOS, Linux BlueZ,
+Windows BLE APIs and the browser Web Bluetooth API.
 
 The plugin exposes a cross-platform API for Bluetooth permissions, adapter state,
 scanning/device selection, connections, GATT client operations, GATT
 server/peripheral mode, advertising, notifications, RSSI, MTU, PHY, Android
-bonding, Android connection priority, Android Classic RFCOMM sockets, and
-Windows BLE central/GATT client operations.
+bonding, Android connection priority, Android Classic RFCOMM sockets, Linux
+BlueZ BLE central/GATT client operations, and Windows BLE central/GATT client
+operations.
 
 ## Platform coverage
 
@@ -24,6 +25,13 @@ Windows BLE central/GATT client operations.
   characteristic/descriptor IO, notifications, RSSI, local GATT services, and
   advertising with local name/service UUIDs. macOS uses CoreBluetooth UUIDs for
   device IDs and does not expose Bluetooth adapter addresses.
+- Linux: BlueZ DBus adapter state, BlueZ discovery with BLE/classic/dual
+  transport filters, paired and connected device enumeration, BLE GATT client
+  connection, service discovery, characteristic/descriptor reads and writes,
+  characteristic notifications, BlueZ pairing/removal, Bluetooth settings tool
+  launch, and cached advertisement RSSI. Linux currently does not implement
+  local GATT server, BLE advertising/peripheral mode, Classic RFCOMM sockets,
+  MTU negotiation, PHY control, or connection priority hints.
 - Windows: WinRT Bluetooth LE adapter state, BLE advertisement scanning, paired
   BLE device enumeration, BLE GATT client connection bootstrap, service
   discovery, characteristic/descriptor reads and writes, characteristic
@@ -37,17 +45,17 @@ Windows BLE central/GATT client operations.
   MTU negotiation, PHY, bonding management, BLE advertising/peripheral mode, or
   Classic Bluetooth.
 
-Some platform APIs do not exist publicly on every system. iOS, macOS, and
-Windows cannot enable Bluetooth programmatically through this plugin; iOS and
-macOS do not expose Classic Bluetooth RFCOMM; Windows Classic RFCOMM is not
-implemented here; and non-Android platforms do not expose Android-style bonding
-or connection priority. iOS/macOS do not expose public MTU negotiation, while
-Windows/Web return `0` for unavailable MTU and write-length values. Web
-Bluetooth is chooser-based and exposes only site-authorized BLE GATT
-devices/services. Unsupported APIs return `false`,
-empty lists/streams, no-op for safe stop/clear calls, `0` for unavailable MTU or
-write-length values, or an unsupported error for operations that cannot be
-represented on that platform.
+Some platform APIs do not exist publicly on every system. Linux can attempt to
+power the BlueZ adapter on, but iOS, macOS, Windows, and Web cannot enable
+Bluetooth programmatically through this plugin. iOS and macOS do not expose
+Classic Bluetooth RFCOMM; Linux/Windows Classic RFCOMM is not implemented here;
+and non-Android platforms do not expose Android connection priority. iOS/macOS
+do not expose public MTU negotiation, while Linux/Windows/Web return `0` for
+unavailable MTU and write-length values. Web Bluetooth is chooser-based and
+exposes only site-authorized BLE GATT devices/services. Unsupported APIs return
+`false`, empty lists/streams, no-op for safe stop/clear calls, `0` for
+unavailable MTU or write-length values, or an unsupported error for operations
+that cannot be represented on that platform.
 
 ## Permissions
 
@@ -81,6 +89,12 @@ context (HTTPS or localhost). `requestPermissions()` only reports status; call
 device chooser. Pass the GATT service UUIDs you need so the browser grants
 access to those services after connection.
 
+For Linux desktop, Bluetooth access is handled by BlueZ and system DBus policy.
+`requestPermissions()` reports `bluetooth: granted` when a BlueZ adapter is
+available and `notApplicable` otherwise; it does not display a runtime prompt.
+`requestEnable()` attempts to set the adapter `Powered` property, and
+`openBluetoothSettings()` tries common desktop Bluetooth settings tools.
+
 For Windows desktop, Bluetooth access is handled by the OS and WinRT device
 APIs. `requestPermissions()` reports `bluetooth: granted` when a BLE adapter is
 available and `notApplicable` otherwise; it does not display a runtime prompt.
@@ -108,7 +122,7 @@ final bluetooth = FlutterBluetoothPlugin();
 await bluetooth.requestPermissions();
 
 if (await bluetooth.getAdapterState() != BluetoothAdapterState.poweredOn) {
-  await bluetooth.requestEnable(); // Android only; iOS/macOS/Windows/Web return false.
+  await bluetooth.requestEnable(); // Android; Linux attempts BlueZ Powered; others return false.
 }
 
 final sub = bluetooth.scanResults.listen((result) {
