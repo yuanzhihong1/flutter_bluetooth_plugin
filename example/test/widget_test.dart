@@ -142,8 +142,8 @@ void main() {
     await tester.pump();
 
     expect(find.byType(CupertinoApp), findsOneWidget);
-    expect(find.text('Bluetooth Lab'), findsOneWidget);
-    expect(find.text('Native Bluetooth Tester'), findsOneWidget);
+    expect(find.text('蓝牙实验室'), findsOneWidget);
+    expect(find.text('原生蓝牙测试台'), findsOneWidget);
     expect(find.text('Test OS 1.0'), findsOneWidget);
   });
 }
