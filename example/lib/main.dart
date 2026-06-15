@@ -59,6 +59,7 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
   final TextEditingController _classicWriteController = TextEditingController(
     text: 'hello classic',
   );
+  final ScrollController _scrollController = ScrollController();
   final Map<String, BluetoothScanResult> _scanResults =
       <String, BluetoothScanResult>{};
   final List<String> _logs = <String>[];
@@ -192,6 +193,7 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
     _writeController.dispose();
     _descriptorWriteController.dispose();
     _classicWriteController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -209,7 +211,9 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
               ),
       ),
       child: CupertinoScrollbar(
+        controller: _scrollController,
         child: ListView(
+          controller: _scrollController,
           children: <Widget>[
             _heroPanel(context),
             const SizedBox(height: 14),

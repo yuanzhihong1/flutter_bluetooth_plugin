@@ -200,6 +200,32 @@ List<int> _asByteList(Object? value) {
   return (value as List<dynamic>).map((item) => (item as num).toInt()).toList();
 }
 
+bool _asBool(Object? value, {bool defaultValue = false}) {
+  return _asNullableBool(value) ?? defaultValue;
+}
+
+bool? _asNullableBool(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is bool) {
+    return value;
+  }
+  if (value is num) {
+    return value != 0;
+  }
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
+      return true;
+    }
+    if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+      return false;
+    }
+  }
+  return null;
+}
+
 Map<int, List<int>> _asManufacturerData(Object? value) {
   final map = _asStringMap(value);
   return map.map(
@@ -247,8 +273,8 @@ class BluetoothDevice {
       name: map['name']?.toString(),
       address: map['address']?.toString(),
       type: map['type']?.toString(),
-      isConnected: map['isConnected'] == true,
-      isBonded: map['isBonded'] == true,
+      isConnected: _asBool(map['isConnected']),
+      isBonded: _asBool(map['isBonded']),
       raw: map,
     );
   }
@@ -335,7 +361,7 @@ class BluetoothScanResult {
       manufacturerData: _asManufacturerData(map['manufacturerData']),
       serviceData: _asServiceData(map['serviceData']),
       txPowerLevel: (map['txPowerLevel'] as num?)?.toInt(),
-      isConnectable: map['isConnectable'] as bool?,
+      isConnectable: _asNullableBool(map['isConnectable']),
       raw: map,
     );
   }
@@ -556,7 +582,7 @@ class BluetoothGattService {
             .toList(growable: false);
     return BluetoothGattService(
       uuid: map['uuid']?.toString() ?? '',
-      isPrimary: map['isPrimary'] != false,
+      isPrimary: _asBool(map['isPrimary'], defaultValue: true),
       characteristics: characteristics,
       includedServices: _asStringList(map['includedServices']),
       raw: map,
@@ -901,24 +927,24 @@ class BluetoothAdapterInfo {
   /// - [map]：原生适配器数据，无默认值；缺失布尔字段会按 `false` 处理。
   factory BluetoothAdapterInfo.fromMap(Map<String, dynamic> map) {
     return BluetoothAdapterInfo(
-      isSupported: map['isSupported'] == true,
+      isSupported: _asBool(map['isSupported']),
       state: bluetoothAdapterStateFromString(map['state']?.toString()),
       name: map['name']?.toString(),
       address: map['address']?.toString(),
-      isBleSupported: map['isBleSupported'] == true,
+      isBleSupported: _asBool(map['isBleSupported']),
       isMultipleAdvertisementSupported:
-          map['isMultipleAdvertisementSupported'] == true,
+          _asBool(map['isMultipleAdvertisementSupported']),
       isOffloadedFilteringSupported:
-          map['isOffloadedFilteringSupported'] == true,
+          _asBool(map['isOffloadedFilteringSupported']),
       isOffloadedScanBatchingSupported:
-          map['isOffloadedScanBatchingSupported'] == true,
-      isLe2MPhySupported: map['isLe2MPhySupported'] == true,
-      isLeCodedPhySupported: map['isLeCodedPhySupported'] == true,
+          _asBool(map['isOffloadedScanBatchingSupported']),
+      isLe2MPhySupported: _asBool(map['isLe2MPhySupported']),
+      isLeCodedPhySupported: _asBool(map['isLeCodedPhySupported']),
       isLeExtendedAdvertisingSupported:
-          map['isLeExtendedAdvertisingSupported'] == true,
+          _asBool(map['isLeExtendedAdvertisingSupported']),
       isLePeriodicAdvertisingSupported:
-          map['isLePeriodicAdvertisingSupported'] == true,
-      isDiscovering: map['isDiscovering'] == true,
+          _asBool(map['isLePeriodicAdvertisingSupported']),
+      isDiscovering: _asBool(map['isDiscovering']),
       raw: map,
     );
   }
@@ -1085,7 +1111,7 @@ class BluetoothAdvertisingStateEvent {
   /// - [map]：原生事件数据，无默认值。
   factory BluetoothAdvertisingStateEvent.fromMap(Map<String, dynamic> map) {
     return BluetoothAdvertisingStateEvent(
-      isAdvertising: map['isAdvertising'] == true,
+      isAdvertising: _asBool(map['isAdvertising']),
       errorCode: (map['errorCode'] as num?)?.toInt(),
       message: map['message']?.toString(),
     );
@@ -1147,8 +1173,8 @@ class BluetoothGattServerRequest {
       requestId: (map['requestId'] as num?)?.toInt(),
       offset: (map['offset'] as num?)?.toInt() ?? 0,
       value: _asByteList(map['value']),
-      preparedWrite: map['preparedWrite'] == true,
-      responseNeeded: map['responseNeeded'] == true,
+      preparedWrite: _asBool(map['preparedWrite']),
+      responseNeeded: _asBool(map['responseNeeded']),
       raw: map,
     );
   }

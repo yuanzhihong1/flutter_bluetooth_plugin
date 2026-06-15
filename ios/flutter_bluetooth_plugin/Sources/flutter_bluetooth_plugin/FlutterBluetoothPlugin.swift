@@ -1059,7 +1059,7 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     if let txPowerLevel = advertisementData[CBAdvertisementDataTxPowerLevelKey] {
       map["txPowerLevel"] = txPowerLevel
     }
-    if let isConnectable = advertisementData[CBAdvertisementDataIsConnectable] {
+    if let isConnectable = boolValue(advertisementData[CBAdvertisementDataIsConnectable]) {
       map["isConnectable"] = isConnectable
     }
     return map
@@ -1119,6 +1119,17 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
   private func byteList(_ data: Data?) -> [Int] {
     guard let data = data else { return [] }
     return data.map { Int($0) }
+  }
+
+  private func boolValue(_ value: Any?) -> Bool? {
+    if let value = value as? Bool { return value }
+    if let value = value as? NSNumber { return value.boolValue }
+    if let value = value as? String {
+      let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      if ["true", "1", "yes"].contains(normalized) { return true }
+      if ["false", "0", "no"].contains(normalized) { return false }
+    }
+    return nil
   }
 
   private func descriptorValueBytes(_ value: Any?) -> [Int] {
