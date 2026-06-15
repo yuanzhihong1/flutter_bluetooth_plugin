@@ -5,10 +5,9 @@ export 'flutter_bluetooth_plugin_models.dart';
 
 /// Flutter 蓝牙插件的对外入口。
 ///
-/// 主要覆盖 Android 与 iOS 的 BLE 中心设备、GATT 客户端、外设/广播、
-/// RSSI、MTU、PHY，以及 Android Classic RFCOMM 能力。Web 当前返回不支持
-/// 或空数据；macOS、Linux、Windows 目前仅实现 [getPlatformVersion]，其它
-/// 蓝牙能力通常会由原生端返回未实现。
+/// 主要覆盖 Android、iOS 与 macOS 的 BLE 中心设备、GATT 客户端、
+/// 外设/广播、RSSI、MTU/最大写入长度，以及 Android Classic RFCOMM 能力。
+/// Web 当前返回不支持或空数据；Linux、Windows 目前仅实现 [getPlatformVersion]。
 class FlutterBluetoothPlugin {
   /// 创建一个蓝牙插件访问对象。
   ///
@@ -20,23 +19,24 @@ class FlutterBluetoothPlugin {
 
   /// 获取当前运行平台版本字符串。
   ///
-  /// 无参数。Android 返回类似 `Android 14`，iOS 返回类似 `iOS 17.0`，Web
-  /// 返回浏览器 User-Agent；桌面端模板实现只保证返回平台版本。
+  /// 无参数。Android 返回类似 `Android 14`，iOS 返回类似 `iOS 17.0`，macOS
+  /// 返回类似 `macOS Version 14.0`；Web 返回浏览器 User-Agent；Linux/Windows
+  /// 模板实现只保证返回平台版本。
   Future<String?> getPlatformVersion() {
     return _platform.getPlatformVersion();
   }
 
   /// 判断当前设备/平台是否支持蓝牙能力。
   ///
-  /// 无参数。Android/iOS 会查询系统蓝牙能力；Web 固定返回 `false`；桌面端
-  /// 除 [getPlatformVersion] 外暂未实现蓝牙 API。
+  /// 无参数。Android/iOS/macOS 会查询系统蓝牙能力；Web 固定返回 `false`；
+  /// Linux/Windows 除 [getPlatformVersion] 外暂未实现蓝牙 API。
   Future<bool> isSupported() {
     return _platform.isSupported();
   }
 
   /// 获取蓝牙适配器当前状态。
   ///
-  /// 无参数。Android/iOS 返回真实状态；Web 返回
+  /// 无参数。Android/iOS/macOS 返回真实状态；Web 返回
   /// [BluetoothAdapterState.unsupported]。建议在扫描、连接或广播前确认状态为
   /// [BluetoothAdapterState.poweredOn]。
   Future<BluetoothAdapterState> getAdapterState() {
@@ -45,7 +45,7 @@ class FlutterBluetoothPlugin {
 
   /// 获取蓝牙适配器信息和平台能力。
   ///
-  /// 无参数。Android 会返回更多硬件能力字段；iOS 仅公开 CoreBluetooth 允许的
+  /// 无参数。Android 会返回更多硬件能力字段；iOS/macOS 仅公开 CoreBluetooth 允许的
   /// 信息，PHY、扩展广播、离线过滤等 Android 专属能力通常为 `false`；Web
   /// 返回不支持。
   Future<BluetoothAdapterInfo> getAdapterInfo() {
@@ -54,7 +54,7 @@ class FlutterBluetoothPlugin {
 
   /// 判断当前是否正在扫描。
   ///
-  /// 无参数。Android 同时包含 BLE 扫描和 Classic discovery；iOS 仅包含 BLE
+  /// 无参数。Android 同时包含 BLE 扫描和 Classic discovery；iOS/macOS 仅包含 BLE
   /// 扫描；Web 固定返回 `false`。
   Future<bool> isScanning() {
     return _platform.isScanning();
@@ -65,22 +65,22 @@ class FlutterBluetoothPlugin {
   /// 参数：
   /// - [name]：目标名称，无默认值；建议保持短名称，避免不同系统 UI 截断。
   ///
-  /// 平台差异：当前仅 Android 原生实现会尝试修改；iOS/Web 返回 `false`，桌面端
-  /// 未实现。Android 12+ 需要 `BLUETOOTH_CONNECT` 权限。
+  /// 平台差异：当前仅 Android 原生实现会尝试修改；iOS/macOS/Web 返回 `false`；Linux/Windows 未实现。Android 12+
+  /// 需要 `BLUETOOTH_CONNECT` 权限。
   Future<bool> setAdapterName(String name) {
     return _platform.setAdapterName(name);
   }
 
   /// 监听蓝牙适配器状态变化。
   ///
-  /// 无参数。Android/iOS 会推送系统状态变化；Web 只返回不支持状态。建议用它
+  /// 无参数。Android/iOS/macOS 会推送系统状态变化；Web 只返回不支持状态。建议用它
   /// 驱动 UI，而不是频繁轮询 [getAdapterState]。
   Stream<BluetoothAdapterState> get adapterState => _platform.adapterState;
 
   /// 检查蓝牙相关权限状态，不触发系统授权弹窗。
   ///
   /// 无参数。Android 返回 `bluetoothScan`、`bluetoothConnect`、
-  /// `bluetoothAdvertise`、`locationWhenInUse` 等键；iOS 返回 `bluetooth`；Web
+  /// `bluetoothAdvertise`、`locationWhenInUse` 等键；iOS/macOS 返回 `bluetooth`；Web
   /// 返回 `bluetooth: notApplicable`。
   Future<Map<String, BluetoothPermissionStatus>> checkPermissions() {
     return _platform.checkPermissions();
@@ -88,15 +88,15 @@ class FlutterBluetoothPlugin {
 
   /// 请求蓝牙相关权限。
   ///
-  /// 无参数。Android 会请求运行时权限；iOS 会初始化 CoreBluetooth 以触发系统授权；
-  /// Web 与桌面端不会弹出蓝牙授权。建议在扫描、连接、广播前调用，并检查返回值。
+  /// 无参数。Android 会请求运行时权限；iOS/macOS 会初始化 CoreBluetooth 以触发系统授权；
+  /// Web/Linux/Windows 不会弹出蓝牙授权。建议在扫描、连接、广播前调用，并检查返回值。
   Future<Map<String, BluetoothPermissionStatus>> requestPermissions() {
     return _platform.requestPermissions();
   }
 
   /// 请求用户开启蓝牙。
   ///
-  /// 无参数。Android 会打开系统开启蓝牙弹窗；iOS/Web 无法由应用直接开启蓝牙，
+  /// 无参数。Android 会打开系统开启蓝牙弹窗；iOS/macOS/Web 无法由应用直接开启蓝牙，
   /// 返回 `false`。跨平台推荐在返回 `false` 时调用 [openBluetoothSettings] 或提示用户手动开启。
   Future<bool> requestEnable() {
     return _platform.requestEnable();
@@ -104,7 +104,8 @@ class FlutterBluetoothPlugin {
 
   /// 打开系统蓝牙相关设置页。
   ///
-  /// 无参数。Android 打开蓝牙设置；iOS 打开当前 App 设置页；Web 当前为空操作。
+  /// 无参数。Android 打开蓝牙设置；iOS 打开当前 App 设置页；macOS 打开系统蓝牙设置页；
+  /// Web 当前为空操作。
   Future<void> openBluetoothSettings() {
     return _platform.openBluetoothSettings();
   }
@@ -113,13 +114,13 @@ class FlutterBluetoothPlugin {
   ///
   /// 参数：
   /// - [serviceUuids]：BLE 服务 UUID 过滤列表，默认 `const <String>[]` 表示不过滤。
-  ///   iOS 上推荐传入目标服务 UUID 以提高可发现性；Android 可为空扫描全部。
+  ///   iOS/macOS 上推荐传入目标服务 UUID 以提高可发现性；Android 可为空扫描全部。
   /// - [timeout]：扫描超时，默认 `null` 表示不自动停止。推荐前台扫描使用
   ///   `Duration(seconds: 10)` 到 `Duration(seconds: 15)`，避免耗电。
   /// - [allowDuplicates]：是否允许同一设备重复上报，默认 `false`。需要实时 RSSI
   ///   或广播数据变化时可设为 `true`，但会明显增加事件量。
   /// - [scanMode]：扫描模式，默认 [BluetoothScanMode.ble]。Android 支持
-  ///   `ble`、`classic`、`dual`；iOS 只支持 BLE，会忽略 Classic 相关模式；Web
+  ///   `ble`、`classic`、`dual`；iOS/macOS 只支持 BLE，会忽略 Classic 相关模式；Web
   ///   不支持扫描。跨平台推荐使用 [BluetoothScanMode.ble]。
   Future<void> startScan({
     List<String> serviceUuids = const <String>[],
@@ -137,7 +138,7 @@ class FlutterBluetoothPlugin {
 
   /// 停止当前扫描。
   ///
-  /// 无参数。Android 会同时停止 BLE 扫描和 Classic discovery；iOS 停止 BLE 扫描；
+  /// 无参数。Android 会同时停止 BLE 扫描和 Classic discovery；iOS/macOS 停止 BLE 扫描；
   /// Web 为空操作。建议页面退出或拿到目标设备后主动调用。
   Future<void> stopScan() {
     return _platform.stopScan();
@@ -146,12 +147,12 @@ class FlutterBluetoothPlugin {
   /// 监听扫描结果。
   ///
   /// 无参数。先订阅该流再调用 [startScan] 可避免漏掉早期结果；Android Classic
-  /// 结果通常缺少 service/manufacturer 数据，iOS 仅返回 BLE 外设。
+  /// 结果通常缺少 service/manufacturer 数据，iOS/macOS 仅返回 BLE 外设。
   Stream<BluetoothScanResult> get scanResults => _platform.scanResults;
 
   /// 获取已配对/已绑定设备列表。
   ///
-  /// 无参数。Android 返回系统已绑定设备；iOS/Web 没有公开配对列表，返回空列表。
+  /// 无参数。Android 返回系统已绑定设备；iOS/macOS/Web 没有公开配对列表，返回空列表。
   Future<List<BluetoothDevice>> getBondedDevices() {
     return _platform.getBondedDevices();
   }
@@ -159,10 +160,10 @@ class FlutterBluetoothPlugin {
   /// 获取当前已连接设备列表。
   ///
   /// 参数：
-  /// - [serviceUuids]：服务 UUID 过滤列表，默认 `const <String>[]`。iOS 可用它查询
+  /// - [serviceUuids]：服务 UUID 过滤列表，默认 `const <String>[]`。iOS/macOS 可用它查询
   ///   系统已连接且包含指定服务的外设；Android 当前忽略该参数并返回已连接 GATT 设备。
   ///
-  /// 推荐：需要兼容 iOS 时传入目标服务 UUID；只关心本插件已连接设备时可使用默认值。
+  /// 推荐：需要兼容 iOS/macOS 时传入目标服务 UUID；只关心本插件已连接设备时可使用默认值。
   Future<List<BluetoothDevice>> getConnectedDevices({
     List<String> serviceUuids = const <String>[],
   }) {
@@ -172,7 +173,7 @@ class FlutterBluetoothPlugin {
   /// 根据设备 ID 获取设备信息。
   ///
   /// 参数：
-  /// - [deviceId]：设备标识，无默认值。Android 通常是 MAC 地址；iOS 是
+  /// - [deviceId]：设备标识，无默认值。Android 通常是 MAC 地址；iOS/macOS 是
   ///   CoreBluetooth peripheral UUID，通常来自扫描结果。
   Future<BluetoothDevice?> getDevice(String deviceId) {
     return _platform.getDevice(deviceId);
@@ -182,7 +183,7 @@ class FlutterBluetoothPlugin {
   ///
   /// 参数：
   /// - [deviceIds]：设备 ID 列表，无默认值。Android 可通过 MAC 地址构造远端设备；
-  ///   iOS 只能返回当前已扫描或已记住的外设。
+  ///   iOS/macOS 只能返回当前已扫描或已记住的外设。
   Future<List<BluetoothDevice>> getDevices(List<String> deviceIds) {
     return _platform.getDevices(deviceIds);
   }
@@ -190,9 +191,9 @@ class FlutterBluetoothPlugin {
   /// 连接 BLE 设备。
   ///
   /// 参数：
-  /// - [deviceId]：设备标识，无默认值。Android 使用 MAC 地址；iOS 使用扫描得到的
+  /// - [deviceId]：设备标识，无默认值。Android 使用 MAC 地址；iOS/macOS 使用扫描得到的
   ///   peripheral UUID。
-  /// - [autoConnect]：是否使用 Android 自动连接语义，默认 `false`。iOS 会忽略该参数。
+  /// - [autoConnect]：是否使用 Android 自动连接语义，默认 `false`。iOS/macOS 会忽略该参数。
   ///   前台主动连接推荐保持 `false`；后台等待设备回连时 Android 可设为 `true`。
   /// - [timeout]：连接超时，默认 `null` 表示不由插件自动超时。前台连接推荐
   ///   `Duration(seconds: 10)` 到 `Duration(seconds: 15)`；Android `autoConnect: true`
@@ -212,7 +213,7 @@ class FlutterBluetoothPlugin {
   /// 断开 BLE 连接。
   ///
   /// 参数：
-  /// - [deviceId]：设备标识，无默认值。未连接时 Android 会视为成功；iOS 找不到设备时会返回错误。
+  /// - [deviceId]：设备标识，无默认值。未连接时 Android 会视为成功；iOS/macOS 找不到设备时会返回错误。
   Future<void> disconnect(String deviceId) {
     return _platform.disconnect(deviceId);
   }
@@ -266,7 +267,7 @@ class FlutterBluetoothPlugin {
   /// - [value]：要写入的字节数组，无默认值。
   /// - [writeType]：写入类型，默认 [BluetoothWriteType.withResponse]。可靠性优先推荐
   ///   `withResponse`；吞吐优先且特征支持 `writeWithoutResponse` 时可用
-  ///   [BluetoothWriteType.withoutResponse]。iOS 的无响应写会立即完成，不等待回调。
+  ///   [BluetoothWriteType.withoutResponse]。iOS/macOS 的无响应写会立即完成，不等待回调。
   Future<void> writeCharacteristic({
     required String deviceId,
     required String serviceUuid,
@@ -291,7 +292,7 @@ class FlutterBluetoothPlugin {
   /// - [characteristicUuid]：特征 UUID，无默认值。
   /// - [enable]：`true` 开启，`false` 关闭，无默认值。
   ///
-  /// 收到的数据从 [characteristicValues] 监听。Android 会写 CCCD；iOS 使用
+  /// 收到的数据从 [characteristicValues] 监听。Android 会写 CCCD；iOS/macOS 使用
   /// CoreBluetooth 的通知订阅接口。
   Future<void> setCharacteristicNotification({
     required String deviceId,
@@ -368,7 +369,7 @@ class FlutterBluetoothPlugin {
   /// 读取远端设备 RSSI。
   ///
   /// 参数：
-  /// - [deviceId]：已连接设备标识，无默认值。Android/iOS 都需要设备处于已连接状态。
+  /// - [deviceId]：已连接设备标识，无默认值。Android/iOS/macOS 都需要设备处于已连接状态。
   Future<int> readRssi(String deviceId) {
     return _platform.readRssi(deviceId);
   }
@@ -383,7 +384,7 @@ class FlutterBluetoothPlugin {
   /// 参数：
   /// - [deviceId]：已连接设备标识，无默认值。
   /// - [mtu]：期望 MTU，无默认值。Android 会向系统发起 MTU 协商，常用推荐值为
-  ///   `247`；确认外设支持且追求吞吐时可尝试 `517`。iOS 不开放 MTU 协商，会忽略
+  ///   `247`；确认外设支持且追求吞吐时可尝试 `517`。iOS/macOS 不开放 MTU 协商，会忽略
   ///   [mtu] 并返回当前最大无响应写入长度；Web 返回 `0`。
   Future<int> requestMtu(String deviceId, int mtu) {
     return _platform.requestMtu(deviceId, mtu);
@@ -394,7 +395,7 @@ class FlutterBluetoothPlugin {
   /// 参数：
   /// - [deviceId]：已连接设备标识，无默认值。
   /// - [withoutResponse]：是否按无响应写计算，默认 `true`。吞吐优先推荐 `true`；需要
-  ///   每包确认时传 `false`。Android 当前按已知 MTU 返回 `mtu - 3`；iOS 会区分
+  ///   每包确认时传 `false`。Android 当前按已知 MTU 返回 `mtu - 3`；iOS/macOS 会区分
   ///   `.withoutResponse` 与 `.withResponse`。
   Future<int> getMaximumWriteLength(
     String deviceId, {
@@ -408,14 +409,14 @@ class FlutterBluetoothPlugin {
 
   /// 监听 MTU 更新事件。
   ///
-  /// 无参数。Android 在 MTU 协商完成后推送；iOS 在 [requestMtu] 时推送当前可写长度。
+  /// 无参数。Android 在 MTU 协商完成后推送；iOS/macOS 在 [requestMtu] 时推送当前可写长度。
   Stream<BluetoothMtuEvent> get mtuUpdates => _platform.mtuUpdates;
 
   /// 设置 BLE 连接优先 PHY。
   ///
   /// 参数：
   /// - [deviceId]：已连接设备标识，无默认值。
-  /// - [txPhy]：发送方向 PHY，无默认值。Android 8.0+ 支持；iOS/Web 不支持。
+  /// - [txPhy]：发送方向 PHY，无默认值。Android 8.0+ 支持；iOS/macOS/Web 不支持。
   /// - [rxPhy]：接收方向 PHY，无默认值。推荐与 [txPhy] 保持一致。
   /// - [phyOptions]：Android PHY 选项，默认 `0` 表示无偏好。只有使用
   ///   [BluetoothPhy.leCoded] 时才需要考虑平台常量 S2/S8；一般推荐保持 `0`。
@@ -440,7 +441,7 @@ class FlutterBluetoothPlugin {
   /// 读取 BLE 当前 PHY。
   ///
   /// 参数：
-  /// - [deviceId]：已连接设备标识，无默认值。Android 8.0+ 返回真实值；iOS/Web 返回
+  /// - [deviceId]：已连接设备标识，无默认值。Android 8.0+ 返回真实值；iOS/macOS/Web 返回
   ///   [BluetoothPhy.unknown]。
   Future<BluetoothPhyEvent> readPhy(String deviceId) {
     return _platform.readPhy(deviceId);
@@ -459,7 +460,7 @@ class FlutterBluetoothPlugin {
   ///   [BluetoothConnectionPriority.balanced]，短时间大数据传输用
   ///   [BluetoothConnectionPriority.high]，空闲保活用 [BluetoothConnectionPriority.lowPower]。
   ///
-  /// 平台差异：Android 原生支持；iOS/Web 返回 `false`。
+  /// 平台差异：Android 原生支持；iOS/macOS/Web 返回 `false`。
   Future<bool> requestConnectionPriority(
     String deviceId,
     BluetoothConnectionPriority priority,
@@ -470,7 +471,7 @@ class FlutterBluetoothPlugin {
   /// 创建系统配对/绑定。
   ///
   /// 参数：
-  /// - [deviceId]：设备标识，无默认值。Android 使用 MAC 地址；iOS/Web 不支持并返回 `false`。
+  /// - [deviceId]：设备标识，无默认值。Android 使用 MAC 地址；iOS/macOS/Web 不支持并返回 `false`。
   Future<bool> createBond(String deviceId) {
     return _platform.createBond(deviceId);
   }
@@ -478,19 +479,19 @@ class FlutterBluetoothPlugin {
   /// 移除系统配对/绑定。
   ///
   /// 参数：
-  /// - [deviceId]：设备标识，无默认值。当前主要适用于 Android；iOS/Web 返回 `false`。
+  /// - [deviceId]：设备标识，无默认值。当前主要适用于 Android；iOS/macOS/Web 返回 `false`。
   Future<bool> removeBond(String deviceId) {
     return _platform.removeBond(deviceId);
   }
 
   /// 监听配对/绑定状态变化。
   ///
-  /// 无参数。当前主要由 Android 推送；iOS/Web 为空流。
+  /// 无参数。当前主要由 Android 推送；iOS/macOS/Web 为空流。
   Stream<BluetoothBondStateEvent> get bondState => _platform.bondState;
 
   /// 判断当前平台是否支持 BLE 外设/广播模式。
   ///
-  /// 无参数。Android 需要设备支持 BLE advertiser；iOS 返回支持 CoreBluetooth 外设模式；
+  /// 无参数。Android 需要设备支持 BLE advertiser；iOS/macOS 返回支持 CoreBluetooth 外设模式；
   /// Web 返回 `false`。
   Future<bool> isPeripheralSupported() {
     return _platform.isPeripheralSupported();
@@ -501,12 +502,12 @@ class FlutterBluetoothPlugin {
   /// 参数：
   /// - [advertisementData]：主广播数据，默认 `const BluetoothAdvertisementData()`。
   ///   跨平台推荐只放 `localName` 与少量 `serviceUuids`，避免超过传统 31 字节限制。
-  /// - [scanResponse]：扫描响应数据，默认 `null`。Android 支持；iOS 当前忽略。
+  /// - [scanResponse]：扫描响应数据，默认 `null`。Android 支持；iOS/macOS 当前忽略。
   /// - [settings]：广播设置，默认 `const BluetoothAdvertisingSettings()`，即 balanced、
-  ///   medium、connectable `true`、无超时。Android 支持这些设置；iOS 当前忽略设置。
+  ///   medium、connectable `true`、无超时。Android 支持这些设置；iOS/macOS 当前忽略设置。
   ///
   /// 平台差异：Android 支持 manufacturer/service data、scan response 和功率/模式设置；
-  /// iOS 当前只使用 [BluetoothAdvertisementData.localName] 与 `serviceUuids`；Web 不支持。
+  /// iOS/macOS 当前只使用 [BluetoothAdvertisementData.localName] 与 `serviceUuids`；Web 不支持。
   Future<void> startAdvertising({
     BluetoothAdvertisementData advertisementData =
         const BluetoothAdvertisementData(),
@@ -523,7 +524,7 @@ class FlutterBluetoothPlugin {
 
   /// 停止 BLE 广播。
   ///
-  /// 无参数。Android/iOS 会停止外设广播；Web 为空操作。
+  /// 无参数。Android/iOS/macOS 会停止外设广播；Web 为空操作。
   Future<void> stopAdvertising() {
     return _platform.stopAdvertising();
   }
@@ -538,7 +539,7 @@ class FlutterBluetoothPlugin {
   /// 设置本地 GATT Server 服务列表。
   ///
   /// 参数：
-  /// - [services]：要暴露的服务列表，无默认值。Android/iOS 支持；Web 不支持。推荐先调用
+  /// - [services]：要暴露的服务列表，无默认值。Android/iOS/macOS 支持；Web 不支持。推荐先调用
   ///   本方法，再调用 [startAdvertising]。
   Future<void> setGattServerServices(List<BluetoothGattService> services) {
     return _platform.setGattServerServices(services);
@@ -546,7 +547,7 @@ class FlutterBluetoothPlugin {
 
   /// 清空本地 GATT Server 服务列表。
   ///
-  /// 无参数。Android/iOS 会移除已注册的本地服务；Web 为空操作。
+  /// 无参数。Android/iOS/macOS 会移除已注册的本地服务；Web 为空操作。
   Future<void> clearGattServerServices() {
     return _platform.clearGattServerServices();
   }
@@ -575,11 +576,11 @@ class FlutterBluetoothPlugin {
   ///
   /// 参数：
   /// - [deviceId]：目标中心设备 ID，默认 `null` 表示尽量发给所有已连接/已订阅设备。
-  ///   Android 支持指定设备；iOS 当前忽略该参数并发给已订阅中心设备。
+  ///   Android 支持指定设备；iOS/macOS 当前忽略该参数并发给已订阅中心设备。
   /// - [serviceUuid]：本地服务 UUID，无默认值。
   /// - [characteristicUuid]：本地特征 UUID，无默认值。
   /// - [value]：要发送的字节数组，无默认值。
-  /// - [confirm]：是否使用需要确认的 indication，默认 `false`。Android 支持；iOS 当前忽略。
+  /// - [confirm]：是否使用需要确认的 indication，默认 `false`。Android 支持；iOS/macOS 当前忽略。
   ///   需要可靠送达时可设为 `true`，高频数据推荐保持 `false`。
   Future<bool> notifyGattServerCharacteristic({
     String? deviceId,
@@ -600,7 +601,7 @@ class FlutterBluetoothPlugin {
   /// 监听本地 GATT Server 请求和状态事件。
   ///
   /// 无参数。事件包含连接、服务添加、读写、订阅、通知发送等平台事件；Android 事件更完整，
-  /// iOS 主要包含读写和订阅事件。
+  /// iOS/macOS 主要包含读写和订阅事件。
   Stream<BluetoothGattServerRequest> get gattServerRequests {
     return _platform.gattServerRequests;
   }
@@ -616,7 +617,7 @@ class FlutterBluetoothPlugin {
   /// - [timeout]：连接超时，默认 `null`。当前 Android 原生 Classic 连接未强制使用该超时，
   ///   建议业务层自行设置兜底超时。
   ///
-  /// 平台差异：仅 Android 实现；iOS/Web 不支持 Classic Bluetooth。
+  /// 平台差异：仅 Android 实现；macOS 会返回 `unsupported` 错误；iOS/Web 不支持 Classic Bluetooth。
   Future<void> connectClassic({
     required String deviceId,
     required String serviceUuid,
@@ -638,7 +639,7 @@ class FlutterBluetoothPlugin {
   /// - [serviceName]：服务名称，默认 `FlutterBluetoothPlugin`。
   /// - [secure]：是否使用安全 RFCOMM，默认 `true`。对外发布生产服务推荐 `true`。
   ///
-  /// 平台差异：仅 Android 实现；iOS/Web 不支持 Classic Bluetooth。
+  /// 平台差异：仅 Android 实现；macOS 会返回 `unsupported` 错误；iOS/Web 不支持 Classic Bluetooth。
   Future<void> startClassicServer({
     required String serviceUuid,
     String serviceName = 'FlutterBluetoothPlugin',
@@ -653,7 +654,7 @@ class FlutterBluetoothPlugin {
 
   /// 停止 Android Classic Bluetooth RFCOMM 服务端。
   ///
-  /// 无参数。仅 Android 有效；其它平台为空操作或不支持。
+  /// 无参数。仅 Android 有效；macOS/Web 为空操作，其它平台不支持。
   Future<void> stopClassicServer() {
     return _platform.stopClassicServer();
   }
@@ -661,7 +662,7 @@ class FlutterBluetoothPlugin {
   /// 断开 Classic Bluetooth RFCOMM 连接。
   ///
   /// 参数：
-  /// - [deviceId]：Classic 设备地址，无默认值。仅 Android 有效。
+  /// - [deviceId]：Classic 设备地址，无默认值。仅 Android 有效；macOS/Web 为空操作。
   Future<void> disconnectClassic(String deviceId) {
     return _platform.disconnectClassic(deviceId);
   }
@@ -672,21 +673,21 @@ class FlutterBluetoothPlugin {
   /// - [deviceId]：Classic 设备地址，无默认值。
   /// - [value]：要写入的字节数组，无默认值。
   ///
-  /// 平台差异：仅 Android 实现；iOS/Web 不支持 Classic Bluetooth。
+  /// 平台差异：仅 Android 实现；macOS 会返回 `unsupported` 错误；iOS/Web 不支持 Classic Bluetooth。
   Future<void> writeClassic(String deviceId, List<int> value) {
     return _platform.writeClassic(deviceId, value);
   }
 
   /// 监听 Classic Bluetooth 连接状态。
   ///
-  /// 无参数。仅 Android 推送事件；iOS/Web 为空流。
+  /// 无参数。仅 Android 推送事件；iOS/macOS/Web 为空流。
   Stream<BluetoothClassicConnectionEvent> get classicConnectionState {
     return _platform.classicConnectionState;
   }
 
   /// 监听 Classic Bluetooth 收到的数据。
   ///
-  /// 无参数。仅 Android 推送事件；iOS/Web 为空流。
+  /// 无参数。仅 Android 推送事件；iOS/macOS/Web 为空流。
   Stream<BluetoothClassicDataEvent> get classicData {
     return _platform.classicData;
   }

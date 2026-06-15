@@ -1,5 +1,5 @@
 name: flutter_bluetooth_plugin
-description: "A native Android and iOS Bluetooth plugin for Flutter."
+description: "A native Android, iOS, and macOS Bluetooth plugin for Flutter."
 version: 0.0.1
 homepage:
 

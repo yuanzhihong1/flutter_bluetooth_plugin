@@ -1,6 +1,6 @@
 # flutter_bluetooth_plugin
 
-A Flutter Bluetooth plugin backed by native Android and iOS APIs.
+A Flutter Bluetooth plugin backed by native Android, iOS, and macOS APIs.
 
 The plugin exposes a MethodChannel API for Bluetooth permissions, adapter state,
 scanning, connections, GATT client operations, GATT server/peripheral mode,
@@ -17,13 +17,20 @@ priority, and Android Classic RFCOMM sockets.
   adapter state, BLE scanning, peripheral connections, service discovery,
   characteristic/descriptor IO, notifications, RSSI, local GATT services, and
   advertising with local name/service UUIDs.
+- macOS: CoreBluetooth central APIs and peripheral-manager APIs for authorization,
+  adapter state, BLE scanning, peripheral connections, service discovery,
+  characteristic/descriptor IO, notifications, RSSI, local GATT services, and
+  advertising with local name/service UUIDs. macOS uses CoreBluetooth UUIDs for
+  device IDs and does not expose Bluetooth adapter addresses.
 - Web: currently returns unsupported states and empty streams.
 
-Some platform APIs do not exist publicly on both systems. iOS cannot enable
-Bluetooth programmatically, does not expose Classic Bluetooth discovery/pairing,
-does not expose Android-style connection priority, and does not expose public MTU
-negotiation. Those APIs return `false`, `notImplemented`, empty lists, or the
-current iOS maximum write length where appropriate.
+Some platform APIs do not exist publicly on every system. iOS and macOS cannot
+enable Bluetooth programmatically, do not expose Classic Bluetooth RFCOMM,
+do not expose Android-style bonding or connection priority, and do not expose
+public MTU negotiation. Those APIs return `false`, empty lists, no-op for
+void-only hints such as PHY selection, an unsupported error for macOS Classic
+connect/server/write calls, or the current CoreBluetooth maximum write length
+where appropriate.
 
 ## Permissions
 
@@ -51,6 +58,19 @@ For iOS, the host app must include usage descriptions in `Info.plist`:
 <string>This app uses Bluetooth to communicate with nearby peripherals.</string>
 ```
 
+For macOS, the host app should include a usage description and, when sandboxed,
+the Bluetooth entitlement:
+
+```xml
+<key>NSBluetoothAlwaysUsageDescription</key>
+<string>This app uses Bluetooth to scan, connect, and exchange data with nearby devices.</string>
+```
+
+```xml
+<key>com.apple.security.device.bluetooth</key>
+<true/>
+```
+
 ## Basic central usage
 
 ```dart
@@ -59,7 +79,7 @@ final bluetooth = FlutterBluetoothPlugin();
 await bluetooth.requestPermissions();
 
 if (await bluetooth.getAdapterState() != BluetoothAdapterState.poweredOn) {
-  await bluetooth.requestEnable(); // Android only; iOS returns false.
+  await bluetooth.requestEnable(); // Android only; iOS/macOS return false.
 }
 
 final sub = bluetooth.scanResults.listen((result) {

@@ -3,7 +3,7 @@ library;
 
 /// 蓝牙适配器状态。
 ///
-/// Android/iOS 会映射系统状态；Web 使用 [unsupported]；未知或无法识别的原生值会映射为
+/// Android/iOS/macOS 会映射系统状态；Web 使用 [unsupported]；未知或无法识别的原生值会映射为
 /// [unknown]。
 enum BluetoothAdapterState {
   /// 状态未知，通常表示原生侧返回了未识别状态。
@@ -33,13 +33,13 @@ enum BluetoothAdapterState {
 
 /// 蓝牙权限状态。
 ///
-/// Android 会按具体权限返回多个键；iOS 通常只返回 `bluetooth`；Web 返回
+/// Android 会按具体权限返回多个键；iOS/macOS 通常只返回 `bluetooth`；Web 返回
 /// [notApplicable]。
 enum BluetoothPermissionStatus {
   /// 状态未知，通常表示原生侧返回了未识别值。
   unknown,
 
-  /// 尚未决定，常见于 iOS 首次触发 CoreBluetooth 授权前。
+  /// 尚未决定，常见于 iOS/macOS 首次触发 CoreBluetooth 授权前。
   notDetermined,
 
   /// 已授权。
@@ -60,7 +60,7 @@ enum BluetoothPermissionStatus {
 
 /// 扫描模式。
 ///
-/// [ble] 为默认值和跨平台推荐值；[classic] 与 [dual] 仅 Android 有意义，iOS/Web
+/// [ble] 为默认值和跨平台推荐值；[classic] 与 [dual] 仅 Android 有意义，iOS/macOS/Web
 /// 不支持 Classic Bluetooth。
 enum BluetoothScanMode {
   /// 仅扫描 BLE 设备，默认值，跨平台推荐。
@@ -93,7 +93,7 @@ enum BluetoothConnectionState {
 
 /// Android 配对/绑定状态。
 ///
-/// iOS/Web 不公开配对状态，通常不会产生该事件。
+/// iOS/macOS/Web 不公开配对状态，通常不会产生该事件。
 enum BluetoothBondState {
   /// 未绑定。
   none,
@@ -119,7 +119,7 @@ enum BluetoothWriteType {
 
 /// Android BLE 连接优先级。
 ///
-/// 该枚举主要用于 `requestConnectionPriority`；iOS/Web 会忽略并返回不支持。
+/// 该枚举主要用于 `requestConnectionPriority`；iOS/macOS/Web 会忽略并返回不支持。
 enum BluetoothConnectionPriority {
   /// 均衡模式，常规业务推荐值。
   balanced,
@@ -214,7 +214,7 @@ Map<String, List<int>> _asServiceData(Object? value) {
 
 /// 蓝牙设备摘要信息。
 ///
-/// Android 的 [id] 通常为 MAC 地址；iOS 的 [id] 为 CoreBluetooth peripheral UUID；
+/// Android 的 [id] 通常为 MAC 地址；iOS/macOS 的 [id] 为 CoreBluetooth peripheral UUID；
 /// Web 当前不会返回真实设备。
 class BluetoothDevice {
   /// 创建设备信息。
@@ -222,7 +222,7 @@ class BluetoothDevice {
   /// 参数：
   /// - [id]：设备标识，无默认值。
   /// - [name]：设备名称，默认 `null`，可能因权限或广播缺失而为空。
-  /// - [address]：设备地址，默认 `null`。Android 可能等同 MAC；iOS 通常不公开地址。
+  /// - [address]：设备地址，默认 `null`。Android 可能等同 MAC；iOS/macOS 通常不公开地址。
   /// - [type]：设备类型，默认 `null`，例如 `ble`、`classic` 或平台原生类型。
   /// - [isConnected]：是否已连接，默认 `false`。
   /// - [isBonded]：是否已绑定/配对，默认 `false`；主要 Android 有意义。
@@ -253,13 +253,13 @@ class BluetoothDevice {
     );
   }
 
-  /// 设备标识。Android 通常为 MAC，iOS 为 peripheral UUID。
+  /// 设备标识。Android 通常为 MAC，iOS/macOS 为 peripheral UUID。
   final String id;
 
   /// 设备名称，可能为空。
   final String? name;
 
-  /// 设备地址，默认 `null`；iOS 通常不公开真实地址。
+  /// 设备地址，默认 `null`；iOS/macOS 通常不公开真实地址。
   final String? address;
 
   /// 设备类型，默认 `null`。
@@ -435,9 +435,9 @@ class BluetoothGattCharacteristic {
   /// - [uuid]：特征 UUID，无默认值。
   /// - [serviceUuid]：所属服务 UUID，无默认值。
   /// - [properties]：特征属性，默认 `const <String>[]`。常用值：`read`、`write`、
-  ///   `writeWithoutResponse`、`notify`、`indicate`。iOS 额外支持
+  ///   `writeWithoutResponse`、`notify`、`indicate`。iOS/macOS 额外支持
   ///   `notifyEncryptionRequired`、`indicateEncryptionRequired`。
-  /// - [permissions]：本地 GATT Server 权限，默认 `const <String>[]`。为空时 Android/iOS
+  /// - [permissions]：本地 GATT Server 权限，默认 `const <String>[]`。为空时 Android/iOS/macOS
   ///   都会按可读可写处理；加密权限存在平台差异，跨平台推荐使用 `read`、`write`。
   /// - [value]：初始值，默认 `const <int>[]`。
   /// - [descriptors]：描述符列表，默认 `const <BluetoothGattDescriptor>[]`。
@@ -600,7 +600,7 @@ class BluetoothConnectionStateEvent {
   /// 参数：
   /// - [deviceId]：设备标识，无默认值。
   /// - [state]：连接状态，无默认值。
-  /// - [status]：平台原生状态码，默认 `null`；Android 常见为 GATT status，iOS 通常为空。
+  /// - [status]：平台原生状态码，默认 `null`；Android 常见为 GATT status，iOS/macOS 通常为空。
   const BluetoothConnectionStateEvent({
     required this.deviceId,
     required this.state,
@@ -802,7 +802,7 @@ class BluetoothBondStateEvent {
 
 /// BLE 广播模式。
 ///
-/// 默认推荐 [balanced]。Android 会应用这些设置；iOS 当前忽略广播设置。
+/// 默认推荐 [balanced]。Android 会应用这些设置；iOS/macOS 当前忽略广播设置。
 enum BluetoothAdvertisingMode {
   /// 低功耗广播，适合长时间后台或低频发现。
   lowPower,
@@ -816,7 +816,7 @@ enum BluetoothAdvertisingMode {
 
 /// BLE 广播发射功率。
 ///
-/// 默认推荐 [medium]。Android 会应用该设置；iOS 当前忽略。
+/// 默认推荐 [medium]。Android 会应用该设置；iOS/macOS 当前忽略。
 enum BluetoothTxPowerLevel {
   /// 超低功率，范围最小、最省电。
   ultraLow,
@@ -833,7 +833,7 @@ enum BluetoothTxPowerLevel {
 
 /// BLE PHY 类型。
 ///
-/// Android 8.0+ 可读取/设置；iOS/Web 通常返回 [unknown]。
+/// Android 8.0+ 可读取/设置；iOS/macOS/Web 通常返回 [unknown]。
 enum BluetoothPhy {
   /// LE 1M PHY，兼容性最好，默认回退推荐。
   le1m,
@@ -866,8 +866,8 @@ class BluetoothAdapterInfo {
   /// 参数：
   /// - [isSupported]：是否支持蓝牙，无默认值。
   /// - [state]：当前适配器状态，无默认值。
-  /// - [name]：适配器名称，默认 `null`。Android 需要连接权限；iOS 通常不公开。
-  /// - [address]：适配器地址，默认 `null`。Android 可能受系统限制；iOS 不公开。
+  /// - [name]：适配器名称，默认 `null`。Android 需要连接权限；iOS/macOS 通常不公开。
+  /// - [address]：适配器地址，默认 `null`。Android 可能受系统限制；iOS/macOS 不公开。
   /// - [isBleSupported]：是否支持 BLE，默认 `false`。
   /// - [isMultipleAdvertisementSupported]：是否支持多广播，默认 `false`；主要 Android 能力。
   /// - [isOffloadedFilteringSupported]：是否支持硬件离线过滤，默认 `false`；Android 能力。
@@ -971,12 +971,12 @@ class BluetoothAdvertisementData {
   /// 创建广播数据。
   ///
   /// 参数：
-  /// - [localName]：广播本地名称，默认 `null`。iOS 当前只使用该字段和 [serviceUuids]。
-  /// - [includeDeviceName]：是否包含适配器设备名，默认 `false`；Android 支持，iOS 忽略。
-  /// - [includeTxPowerLevel]：是否包含发射功率，默认 `false`；Android 支持，iOS 忽略。
+  /// - [localName]：广播本地名称，默认 `null`。iOS/macOS 当前只使用该字段和 [serviceUuids]。
+  /// - [includeDeviceName]：是否包含适配器设备名，默认 `false`；Android 支持，iOS/macOS 忽略。
+  /// - [includeTxPowerLevel]：是否包含发射功率，默认 `false`；Android 支持，iOS/macOS 忽略。
   /// - [serviceUuids]：广播服务 UUID，默认 `const <String>[]`。跨平台推荐只放必要服务。
-  /// - [manufacturerData]：厂商数据，默认 `const <int, List<int>>{}`；Android 支持，iOS 当前忽略。
-  /// - [serviceData]：服务数据，默认 `const <String, List<int>>{}`；Android 支持，iOS 当前忽略。
+  /// - [manufacturerData]：厂商数据，默认 `const <int, List<int>>{}`；Android 支持，iOS/macOS 当前忽略。
+  /// - [serviceData]：服务数据，默认 `const <String, List<int>>{}`；Android 支持，iOS/macOS 当前忽略。
   ///
   /// 推荐：传统广播数据空间有限，优先保留 [localName] 和关键 [serviceUuids]，避免同时开启
   /// [includeDeviceName] 和大量厂商数据导致 Android 广播启动失败。
@@ -992,10 +992,10 @@ class BluetoothAdvertisementData {
   /// 广播本地名称，默认 `null`。
   final String? localName;
 
-  /// 是否包含适配器设备名，默认 `false`；Android 支持，iOS 忽略。
+  /// 是否包含适配器设备名，默认 `false`；Android 支持，iOS/macOS 忽略。
   final bool includeDeviceName;
 
-  /// 是否包含发射功率，默认 `false`；Android 支持，iOS 忽略。
+  /// 是否包含发射功率，默认 `false`；Android 支持，iOS/macOS 忽略。
   final bool includeTxPowerLevel;
 
   /// 广播服务 UUID 列表，默认空列表。
@@ -1009,7 +1009,7 @@ class BluetoothAdvertisementData {
 
   /// 转为可传给原生端的 Map。
   ///
-  /// 无参数；Android 会读取全部字段，iOS 当前只读取 [localName] 和 [serviceUuids]。
+  /// 无参数；Android 会读取全部字段，iOS/macOS 当前只读取 [localName] 和 [serviceUuids]。
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       if (localName != null) 'localName': localName,
@@ -1032,7 +1032,7 @@ class BluetoothAdvertisingSettings {
   /// - [mode]：广播模式，默认 [BluetoothAdvertisingMode.balanced]，常规推荐。
   /// - [txPowerLevel]：发射功率，默认 [BluetoothTxPowerLevel.medium]，常规推荐。
   /// - [connectable]：是否可连接，默认 `true`。只做 beacon 广播可设为 `false`。
-  /// - [timeout]：广播超时，默认 `null` 表示不设置超时；Android 会转换为 `0`，iOS 当前忽略。
+  /// - [timeout]：广播超时，默认 `null` 表示不设置超时；Android 会转换为 `0`，iOS/macOS 当前忽略。
   const BluetoothAdvertisingSettings({
     this.mode = BluetoothAdvertisingMode.balanced,
     this.txPowerLevel = BluetoothTxPowerLevel.medium,
@@ -1054,7 +1054,7 @@ class BluetoothAdvertisingSettings {
 
   /// 转为可传给原生端的 Map。
   ///
-  /// 无参数；Android 会读取全部字段，iOS 当前忽略。
+  /// 无参数；Android 会读取全部字段，iOS/macOS 当前忽略。
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'mode': mode.name,
@@ -1109,11 +1109,11 @@ class BluetoothGattServerRequest {
   /// - [event]：事件名称，无默认值。常见值包括 `serviceAdded`、`connectionState`、
   ///   `characteristicRead`、`characteristicWrite`、`descriptorRead`、`descriptorWrite`、
   ///   `subscribed`、`unsubscribed`、`notificationSent`。
-  /// - [deviceId]：中心设备标识，无默认值；iOS 为 central UUID，Android 为设备地址。
+  /// - [deviceId]：中心设备标识，无默认值；iOS/macOS 为 central UUID，Android 为设备地址。
   /// - [serviceUuid]：服务 UUID，默认 `null`。
   /// - [characteristicUuid]：特征 UUID，默认 `null`。
   /// - [descriptorUuid]：描述符 UUID，默认 `null`。
-  /// - [requestId]：Android GATT 请求 ID，默认 `null`；iOS 通常为空。
+  /// - [requestId]：Android GATT 请求 ID，默认 `null`；iOS/macOS 通常为空。
   /// - [offset]：读写偏移，默认 `0`。
   /// - [value]：请求或响应字节数组，默认 `const <int>[]`。
   /// - [preparedWrite]：是否 prepared write，默认 `false`；主要 Android 有意义。
