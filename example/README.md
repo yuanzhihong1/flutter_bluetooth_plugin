@@ -1,17 +1,29 @@
-# flutter_bluetooth_plugin_example
+# flutter_bluetooth_plugin Example
 
-Demonstrates how to use the flutter_bluetooth_plugin plugin.
+This example is a Cupertino-based Bluetooth testing console for the
+`flutter_bluetooth_plugin` package. It is designed to exercise as much of the
+plugin API surface as possible from one app.
 
-## Getting Started
+## What it covers
 
-This project is a starting point for a Flutter application.
+- Platform/version, adapter state, adapter info, permission checks, permission
+  requests, Bluetooth settings, and adapter-name updates
+- BLE scanning with service UUID filters, duplicate-event control, BLE/Classic
+  scan modes, bonded-device loading, connected-device loading, and device lookup
+- BLE connection state, service discovery, characteristic reads/writes,
+  descriptor reads/writes, notifications, RSSI, MTU, maximum write length, PHY,
+  connection priority, and bond/unbond flows
+- Local GATT server setup, BLE advertising, scan-response data, local
+  characteristic updates, notifications/indications, and service cleanup
+- Android Classic RFCOMM client/server socket actions
+- A live event log for every plugin event stream
 
-A few resources to get you started if this is your first Flutter project:
+## Run
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```sh
+flutter pub get
+flutter run
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+For Web Bluetooth, run on HTTPS or localhost and trigger scanning from the app
+button so the browser can open the device chooser.

@@ -27,6 +27,12 @@ class FakeBluetoothPlatform extends FlutterBluetoothPluginPlatform {
   }
 
   @override
+  Future<bool> isScanning() async => false;
+
+  @override
+  Future<bool> setAdapterName(String name) async => true;
+
+  @override
   Future<bool> isPeripheralSupported() async => true;
 
   @override
@@ -34,6 +40,30 @@ class FakeBluetoothPlatform extends FlutterBluetoothPluginPlatform {
     return const <String, BluetoothPermissionStatus>{
       'bluetooth': BluetoothPermissionStatus.granted,
     };
+  }
+
+  @override
+  Future<List<BluetoothDevice>> getConnectedDevices({
+    List<String> serviceUuids = const <String>[],
+  }) async {
+    return const <BluetoothDevice>[];
+  }
+
+  @override
+  Future<BluetoothDevice?> getDevice(String deviceId) async {
+    return BluetoothDevice(id: deviceId, name: 'Test Device');
+  }
+
+  @override
+  Future<List<BluetoothDevice>> getDevices(List<String> deviceIds) async {
+    return deviceIds
+        .map((String id) => BluetoothDevice(id: id, name: 'Test Device'))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<BluetoothConnectionState> getConnectionState(String deviceId) async {
+    return BluetoothConnectionState.disconnected;
   }
 
   @override

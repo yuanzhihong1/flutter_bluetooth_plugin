@@ -1,64 +1,55 @@
 # flutter_bluetooth_plugin
 
-[简体中文](README.zh-CN.md)
+[English](README.md)
 
-A Flutter Bluetooth plugin for Android, iOS, macOS, Linux, Windows, and Web.
-It exposes a single Dart API for adapter state, permissions, BLE scanning,
-GATT client operations, local GATT server/peripheral mode, advertising,
-notifications, RSSI, MTU, PHY, bonding, Android connection priority, Android
-Classic RFCOMM sockets, BlueZ, WinRT, and Web Bluetooth.
+一个面向 Android、iOS、macOS、Linux、Windows 和 Web 的 Flutter 蓝牙插件。它提供统一的 Dart API，用于蓝牙适配器状态、权限、BLE 扫描、GATT Client、本地 GATT Server/外设模式、广播、通知、RSSI、MTU、PHY、绑定、Android 连接优先级、Android Classic RFCOMM、Linux BlueZ、Windows WinRT 以及浏览器 Web Bluetooth。
 
-> Bluetooth APIs differ significantly by operating system. Unsupported features
-> are handled consistently: safe stop/clear calls become no-ops, capability
-> queries return `false`, unavailable numeric values return `0`, streams stay
-> empty, and operations that cannot be represented on the platform throw an
-> unsupported platform error.
+> 各个平台的蓝牙能力差异很大。插件会尽量用一致语义处理不支持的能力：安全的 stop/clear 调用会变成空操作，能力查询返回 `false`，不可用的数值返回 `0`，事件流保持为空，无法模拟的平台操作会抛出 unsupported 错误。
 
-## Contents
+## 目录
 
-- [Platform coverage](#platform-coverage)
-- [Install](#install)
-- [Permissions and setup](#permissions-and-setup)
-- [Quick start](#quick-start)
-- [GATT client](#gatt-client)
-- [Peripheral, GATT server, and advertising](#peripheral-gatt-server-and-advertising)
+- [平台能力](#平台能力)
+- [安装](#安装)
+- [权限与平台配置](#权限与平台配置)
+- [快速开始](#快速开始)
+- [GATT Client](#gatt-client)
+- [外设、GATT Server 与广播](#外设gatt-server-与广播)
 - [Android Classic RFCOMM](#android-classic-rfcomm)
-- [API overview](#api-overview)
-- [Example test app](#example-test-app)
-- [Platform notes](#platform-notes)
-- [License](#license)
+- [API 总览](#api-总览)
+- [示例测试 App](#示例测试-app)
+- [平台说明](#平台说明)
+- [开源协议](#开源协议)
 
-## Platform coverage
+## 平台能力
 
-| Feature | Android | iOS | macOS | Linux | Windows | Web |
+| 能力 | Android | iOS | macOS | Linux | Windows | Web |
 | --- | --- | --- | --- | --- | --- | --- |
-| Adapter state/info | Yes | Yes | Yes | BlueZ | WinRT | Web Bluetooth availability |
-| Runtime permission helpers | Yes | Yes | Yes | DBus availability | OS availability | Permission state only |
-| BLE scan/device selection | Yes | Yes | Yes | BlueZ discovery | BLE advertisements | Browser chooser |
-| Connected/bonded devices | Yes | Limited | Limited | BlueZ | Paired BLE | Site-authorized devices |
-| BLE GATT client | Yes | Yes | Yes | Yes | Yes | Yes, chooser-authorized services |
-| Characteristic notify/indicate | Yes | Yes | Yes | Yes | Yes | Yes |
-| Descriptor read/write | Yes | Yes | Yes | Yes | Yes | Yes |
-| RSSI | Connected RSSI | Connected RSSI | Connected RSSI | Cached advertisement RSSI | Cached advertisement RSSI | No |
-| MTU / max write length | MTU negotiation | Max write length | Max write length | No | No | No |
-| PHY control | Android 8+ | No | No | No | No | No |
-| Bond management | Yes | No public API | No public API | Pair/remove | No | No |
-| Local GATT server | Yes | Yes | Yes | No | No | No |
-| BLE advertising | Yes | Yes | Yes | No | No | No |
-| Connection priority | Android only | No | No | No | No | No |
-| Classic RFCOMM | Android only | No | No | No | No | No |
+| 适配器状态/信息 | 支持 | 支持 | 支持 | BlueZ | WinRT | Web Bluetooth availability |
+| 权限辅助 | 支持 | 支持 | 支持 | DBus 可用性映射 | 系统可用性映射 | 仅权限状态 |
+| BLE 扫描/设备选择 | 支持 | 支持 | 支持 | BlueZ discovery | BLE 广播扫描 | 浏览器设备选择器 |
+| 已连接/已绑定设备 | 支持 | 有限 | 有限 | BlueZ | 已配对 BLE | 当前站点授权设备 |
+| BLE GATT Client | 支持 | 支持 | 支持 | 支持 | 支持 | 支持，受浏览器授权限制 |
+| 特征通知/指示 | 支持 | 支持 | 支持 | 支持 | 支持 | 支持 |
+| 描述符读写 | 支持 | 支持 | 支持 | 支持 | 支持 | 支持 |
+| RSSI | 已连接 RSSI | 已连接 RSSI | 已连接 RSSI | 缓存广播 RSSI | 缓存广播 RSSI | 不支持 |
+| MTU / 最大写入长度 | MTU 协商 | 最大写入长度 | 最大写入长度 | 不支持 | 不支持 | 不支持 |
+| PHY 控制 | Android 8+ | 不支持 | 不支持 | 不支持 | 不支持 | 不支持 |
+| 绑定管理 | 支持 | 无公开 API | 无公开 API | Pair/remove | 不支持 | 不支持 |
+| 本地 GATT Server | 支持 | 支持 | 支持 | 不支持 | 不支持 | 不支持 |
+| BLE 广播 | 支持 | 支持 | 支持 | 不支持 | 不支持 | 不支持 |
+| 连接优先级 | Android 专属 | 不支持 | 不支持 | 不支持 | 不支持 | 不支持 |
+| Classic RFCOMM | Android 专属 | 不支持 | 不支持 | 不支持 | 不支持 | 不支持 |
 
-## Install
+## 安装
 
-Add the dependency to your app:
+在业务 App 中添加依赖：
 
 ```yaml
 dependencies:
   flutter_bluetooth_plugin: ^0.0.1
 ```
 
-For local development from this repository, the bundled example uses a path
-dependency:
+本仓库自带的 `example/` 使用本地 path 依赖，方便直接验证当前源码：
 
 ```yaml
 dependencies:
@@ -66,15 +57,15 @@ dependencies:
     path: ../
 ```
 
-Import the package:
+导入插件：
 
 ```dart
 import 'package:flutter_bluetooth_plugin/flutter_bluetooth_plugin.dart';
 ```
 
-## Permissions and setup
+## 权限与平台配置
 
-Call `requestPermissions()` before scanning, connecting, or advertising:
+扫描、连接、广播前建议先调用 `requestPermissions()`：
 
 ```dart
 final bluetooth = FlutterBluetoothPlugin();
@@ -84,19 +75,17 @@ final info = await bluetooth.getAdapterInfo();
 
 ### Android
 
-The plugin manifest declares the Bluetooth permissions and merges them into the
-host app automatically:
+插件 manifest 会自动合并常用蓝牙权限到宿主 App：
 
-- Android 12+: `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE`
-- Android 6-11: `ACCESS_FINE_LOCATION` for scan results
-- Android 11 and lower: `BLUETOOTH`, `BLUETOOTH_ADMIN`
+- Android 12+：`BLUETOOTH_SCAN`、`BLUETOOTH_CONNECT`、`BLUETOOTH_ADVERTISE`
+- Android 6-11：扫描结果需要 `ACCESS_FINE_LOCATION`
+- Android 11 及以下：`BLUETOOTH`、`BLUETOOTH_ADMIN`
 
-Apps may still need to explain the permission request to users and request
-runtime permissions before scanning or connecting.
+业务 App 仍需要在合适的 UI 时机解释权限用途，并触发运行时权限申请。
 
 ### iOS
 
-Add Bluetooth usage descriptions to the host app `Info.plist`:
+宿主 App 的 `Info.plist` 需要加入蓝牙用途说明：
 
 ```xml
 <key>NSBluetoothAlwaysUsageDescription</key>
@@ -107,7 +96,7 @@ Add Bluetooth usage descriptions to the host app `Info.plist`:
 
 ### macOS
 
-Add the usage description and, for sandboxed apps, the Bluetooth entitlement:
+需要用途说明；沙盒 App 还需要蓝牙 entitlement：
 
 ```xml
 <key>NSBluetoothAlwaysUsageDescription</key>
@@ -121,26 +110,17 @@ Add the usage description and, for sandboxed apps, the Bluetooth entitlement:
 
 ### Linux
 
-Linux support uses BlueZ over system DBus. `requestPermissions()` maps adapter
-availability to a permission status; it does not show a runtime prompt.
-`requestEnable()` attempts to set the BlueZ adapter `Powered` property, and
-`openBluetoothSettings()` tries common desktop Bluetooth settings tools.
+Linux 通过 BlueZ 和 system DBus 工作。`requestPermissions()` 会把适配器可用性映射为权限状态，不会弹系统权限框。`requestEnable()` 会尝试设置 BlueZ Adapter 的 `Powered` 属性，`openBluetoothSettings()` 会尝试打开常见桌面蓝牙设置工具。
 
 ### Windows
 
-Windows support uses WinRT BLE APIs. Bluetooth access is controlled by the OS;
-`requestPermissions()` reports whether a BLE adapter is available, and
-`openBluetoothSettings()` opens the system Bluetooth settings page.
+Windows 使用 WinRT BLE API。蓝牙访问由系统控制；`requestPermissions()` 仅报告 BLE 适配器是否可用，`openBluetoothSettings()` 会打开系统蓝牙设置页。
 
 ### Web
 
-Web Bluetooth requires HTTPS or localhost and must be triggered by a user
-gesture. `requestPermissions()` cannot open a global Bluetooth prompt; call
-`startScan(serviceUuids: [...])` from a button or tap handler to open the
-browser device chooser. Include the GATT service UUIDs you need so the browser
-also grants access to those services after connection.
+Web Bluetooth 需要 HTTPS 或 localhost，并且必须从用户手势触发。`requestPermissions()` 不能打开全局蓝牙授权框；请在按钮点击中调用 `startScan(serviceUuids: [...])` 打开浏览器设备选择器。需要连接后访问哪些 GATT 服务，就把这些服务 UUID 传入扫描参数。
 
-## Quick start
+## 快速开始
 
 ```dart
 final bluetooth = FlutterBluetoothPlugin();
@@ -171,7 +151,7 @@ await bluetooth.stopScan();
 await scanSub.cancel();
 ```
 
-## GATT client
+## GATT Client
 
 ```dart
 await bluetooth.connect(deviceId, timeout: const Duration(seconds: 15));
@@ -205,7 +185,7 @@ final valueSub = bluetooth.characteristicValues.listen((event) {
 });
 ```
 
-Useful connection helpers:
+常用连接辅助 API：
 
 ```dart
 final connected = await bluetooth.getConnectedDevices(
@@ -217,7 +197,7 @@ final mtu = await bluetooth.requestMtu(deviceId, 247);
 final maxWrite = await bluetooth.getMaximumWriteLength(deviceId);
 ```
 
-## Peripheral, GATT server, and advertising
+## 外设、GATT Server 与广播
 
 ```dart
 const serviceUuid = '0000fff0-0000-1000-8000-00805f9b34fb';
@@ -262,7 +242,7 @@ final serverSub = bluetooth.gattServerRequests.listen((event) {
 });
 ```
 
-Update and notify a local characteristic:
+更新并通知本地特征：
 
 ```dart
 await bluetooth.updateLocalCharacteristicValue(
@@ -303,9 +283,9 @@ final classicSub = bluetooth.classicData.listen((event) {
 });
 ```
 
-## API overview
+## API 总览
 
-### Adapter and permissions
+### 适配器与权限
 
 - `getPlatformVersion()`
 - `isSupported()`
@@ -317,7 +297,7 @@ final classicSub = bluetooth.classicData.listen((event) {
 - `requestEnable()`
 - `openBluetoothSettings()`
 
-### Discovery and devices
+### 发现与设备
 
 - `startScan(...)` / `stopScan()` / `scanResults`
 - `getBondedDevices()`
@@ -325,7 +305,7 @@ final classicSub = bluetooth.classicData.listen((event) {
 - `getDevice(deviceId)`
 - `getDevices(deviceIds)`
 
-### BLE connection and GATT client
+### BLE 连接与 GATT Client
 
 - `connect(...)` / `disconnect(deviceId)`
 - `getConnectionState(deviceId)` / `connectionState`
@@ -339,7 +319,7 @@ final classicSub = bluetooth.classicData.listen((event) {
 - `requestConnectionPriority(deviceId, priority)`
 - `createBond(deviceId)` / `removeBond(deviceId)` / `bondState`
 
-### Peripheral, advertising, and Classic
+### 外设、广播与 Classic
 
 - `isPeripheralSupported()`
 - `setGattServerServices(services)` / `clearGattServerServices()`
@@ -353,41 +333,33 @@ final classicSub = bluetooth.classicData.listen((event) {
 - `writeClassic(deviceId, value)`
 - `classicConnectionState` / `classicData`
 
-## Example test app
+## 示例测试 App
 
-The `example/` app is a Cupertino-based Bluetooth testing console. It is built
-to exercise as many plugin APIs as possible from one screen:
+`example/` 已改造成一个 Cupertino 风格的蓝牙测试控制台，目标是在一个页面里尽可能覆盖插件 API：
 
-- Platform, adapter, permission, scanning, and settings diagnostics
-- BLE scan modes, duplicate scan events, bonded devices, connected devices, and
-  device lookup helpers
-- Connection state, service discovery, GATT characteristic/descriptor IO,
-  notifications, RSSI, MTU, maximum write length, PHY, connection priority, and
-  bonding actions
-- Local GATT server setup, advertising, local value updates, notifications, and
-  service cleanup
-- Android Classic RFCOMM client/server socket actions
-- Live event log for every plugin event stream
+- 平台、适配器、权限、扫描、设置页等诊断能力
+- BLE 扫描模式、重复扫描事件、已绑定设备、已连接设备、设备查询 API
+- 连接状态、服务发现、GATT 特征/描述符读写、通知、RSSI、MTU、最大写入长度、PHY、连接优先级、绑定操作
+- 本地 GATT Server、BLE 广播、本地值更新、通知发送、服务清理
+- Android Classic RFCOMM 客户端/服务端 Socket 操作
+- 插件所有事件流的实时日志
 
-Run it with:
+运行示例：
 
 ```sh
 cd example
 flutter run
 ```
 
-## Platform notes
+## 平台说明
 
-- iOS and macOS do not expose public Classic Bluetooth RFCOMM APIs.
-- iOS, macOS, Windows, and Web cannot enable Bluetooth programmatically.
-- Web Bluetooth is chooser-based and limited to site-authorized BLE devices and
-  services.
-- Linux support depends on BlueZ, system DBus access, and desktop Bluetooth
-  tooling availability.
-- Windows support currently focuses on BLE Central/GATT Client APIs.
-- Android has the broadest platform API surface, including Classic RFCOMM,
-  bonding, connection priority, MTU, PHY, and detailed adapter capabilities.
+- iOS 和 macOS 不公开 Classic Bluetooth RFCOMM API。
+- iOS、macOS、Windows 和 Web 不能由应用直接开启蓝牙。
+- Web Bluetooth 基于浏览器设备选择器，只能访问当前站点已授权的 BLE 设备和服务。
+- Linux 能力依赖 BlueZ、system DBus 权限以及桌面蓝牙设置工具。
+- Windows 当前主要覆盖 BLE Central/GATT Client。
+- Android 平台能力最完整，包含 Classic RFCOMM、绑定、连接优先级、MTU、PHY 和更丰富的适配器能力。
 
-## License
+## 开源协议
 
-This project is released under the [MIT License](LICENSE).
+本项目基于 [MIT License](LICENSE) 开源。
