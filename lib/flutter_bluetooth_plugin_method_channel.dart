@@ -6,14 +6,20 @@ import 'package:flutter/services.dart';
 import 'flutter_bluetooth_plugin_models.dart';
 import 'flutter_bluetooth_plugin_platform_interface.dart';
 
-/// An implementation of [FlutterBluetoothPluginPlatform] that uses method channels.
+/// 基于 Flutter MethodChannel 的默认平台实现。
+///
+/// 该类主要供插件注册和测试使用；业务侧通常直接使用 `FlutterBluetoothPlugin`。
 class MethodChannelFlutterBluetoothPlugin
     extends FlutterBluetoothPluginPlatform {
-  /// The method channel used to interact with the native platform.
+  /// 与原生平台通信的 MethodChannel。
+  ///
+  /// 默认通道名为 `flutter_bluetooth_plugin`，仅测试或自定义平台实现通常需要直接访问。
   @visibleForTesting
   final methodChannel = const MethodChannel('flutter_bluetooth_plugin');
 
-  /// The event channel used for scans, state changes, notifications, RSSI, and MTU updates.
+  /// 接收扫描、状态、通知、RSSI、MTU 等事件的 EventChannel。
+  ///
+  /// 默认通道名为 `flutter_bluetooth_plugin/events`。
   @visibleForTesting
   final eventChannel = const EventChannel('flutter_bluetooth_plugin/events');
 
@@ -26,6 +32,9 @@ class MethodChannelFlutterBluetoothPlugin
     return _events!;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.getPlatformVersion]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<String?> getPlatformVersion() async {
     final version = await methodChannel.invokeMethod<String>(
@@ -34,17 +43,26 @@ class MethodChannelFlutterBluetoothPlugin
     return version;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.isSupported]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<bool> isSupported() async {
     return await methodChannel.invokeMethod<bool>('isSupported') ?? false;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.getAdapterState]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<BluetoothAdapterState> getAdapterState() async {
     final state = await methodChannel.invokeMethod<String>('getAdapterState');
     return bluetoothAdapterStateFromString(state);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.getAdapterInfo]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<BluetoothAdapterInfo> getAdapterInfo() async {
     final response = await methodChannel.invokeMapMethod<String, dynamic>(
@@ -53,11 +71,17 @@ class MethodChannelFlutterBluetoothPlugin
     return BluetoothAdapterInfo.fromMap(response ?? <String, dynamic>{});
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.isScanning]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<bool> isScanning() async {
     return await methodChannel.invokeMethod<bool>('isScanning') ?? false;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.setAdapterName]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<bool> setAdapterName(String name) async {
     return await methodChannel.invokeMethod<bool>(
@@ -67,16 +91,20 @@ class MethodChannelFlutterBluetoothPlugin
         false;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.adapterState]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Stream<BluetoothAdapterState> get adapterState {
-    return _eventStream
-        .where((event) => event['type'] == 'adapterState')
-        .map(
+    return _eventStream.where((event) => event['type'] == 'adapterState').map(
           (event) =>
               bluetoothAdapterStateFromString(event['state']?.toString()),
         );
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.checkPermissions]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<Map<String, BluetoothPermissionStatus>> checkPermissions() async {
     final response = await methodChannel.invokeMapMethod<String, dynamic>(
@@ -85,6 +113,9 @@ class MethodChannelFlutterBluetoothPlugin
     return _permissionMapFromPlatform(response);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.requestPermissions]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<Map<String, BluetoothPermissionStatus>> requestPermissions() async {
     final response = await methodChannel.invokeMapMethod<String, dynamic>(
@@ -93,16 +124,25 @@ class MethodChannelFlutterBluetoothPlugin
     return _permissionMapFromPlatform(response);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.requestEnable]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<bool> requestEnable() async {
     return await methodChannel.invokeMethod<bool>('requestEnable') ?? false;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.openBluetoothSettings]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> openBluetoothSettings() async {
     await methodChannel.invokeMethod<void>('openBluetoothSettings');
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.startScan]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> startScan({
     List<String> serviceUuids = const <String>[],
@@ -118,11 +158,17 @@ class MethodChannelFlutterBluetoothPlugin
     });
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.stopScan]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> stopScan() async {
     await methodChannel.invokeMethod<void>('stopScan');
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.scanResults]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Stream<BluetoothScanResult> get scanResults {
     return _eventStream
@@ -130,6 +176,9 @@ class MethodChannelFlutterBluetoothPlugin
         .map(BluetoothScanResult.fromMap);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.getBondedDevices]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<List<BluetoothDevice>> getBondedDevices() async {
     final response = await methodChannel.invokeListMethod<dynamic>(
@@ -138,6 +187,9 @@ class MethodChannelFlutterBluetoothPlugin
     return _deviceListFromPlatform(response);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.getConnectedDevices]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<List<BluetoothDevice>> getConnectedDevices({
     List<String> serviceUuids = const <String>[],
@@ -149,6 +201,9 @@ class MethodChannelFlutterBluetoothPlugin
     return _deviceListFromPlatform(response);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.getDevice]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<BluetoothDevice?> getDevice(String deviceId) async {
     final response = await methodChannel.invokeMapMethod<String, dynamic>(
@@ -161,6 +216,9 @@ class MethodChannelFlutterBluetoothPlugin
     return BluetoothDevice.fromMap(response);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.getDevices]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<List<BluetoothDevice>> getDevices(List<String> deviceIds) async {
     final response = await methodChannel.invokeListMethod<dynamic>(
@@ -170,6 +228,9 @@ class MethodChannelFlutterBluetoothPlugin
     return _deviceListFromPlatform(response);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.connect]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> connect(
     String deviceId, {
@@ -183,6 +244,9 @@ class MethodChannelFlutterBluetoothPlugin
     });
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.disconnect]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> disconnect(String deviceId) async {
     await methodChannel.invokeMethod<void>('disconnect', <String, dynamic>{
@@ -190,6 +254,9 @@ class MethodChannelFlutterBluetoothPlugin
     });
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.getConnectionState]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<BluetoothConnectionState> getConnectionState(String deviceId) async {
     final state = await methodChannel.invokeMethod<String>(
@@ -199,6 +266,9 @@ class MethodChannelFlutterBluetoothPlugin
     return bluetoothConnectionStateFromString(state);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.connectionState]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Stream<BluetoothConnectionStateEvent> get connectionState {
     return _eventStream
@@ -206,6 +276,9 @@ class MethodChannelFlutterBluetoothPlugin
         .map(BluetoothConnectionStateEvent.fromMap);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.discoverServices]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<List<BluetoothGattService>> discoverServices(String deviceId) async {
     final response = await methodChannel.invokeListMethod<dynamic>(
@@ -217,6 +290,9 @@ class MethodChannelFlutterBluetoothPlugin
         .toList(growable: false);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.readCharacteristic]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<List<int>> readCharacteristic({
     required String deviceId,
@@ -225,13 +301,16 @@ class MethodChannelFlutterBluetoothPlugin
   }) async {
     final response = await methodChannel
         .invokeListMethod<dynamic>('readCharacteristic', <String, dynamic>{
-          'deviceId': deviceId,
-          'serviceUuid': serviceUuid,
-          'characteristicUuid': characteristicUuid,
-        });
+      'deviceId': deviceId,
+      'serviceUuid': serviceUuid,
+      'characteristicUuid': characteristicUuid,
+    });
     return _byteListFromPlatform(response);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.writeCharacteristic]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> writeCharacteristic({
     required String deviceId,
@@ -242,14 +321,17 @@ class MethodChannelFlutterBluetoothPlugin
   }) async {
     await methodChannel
         .invokeMethod<void>('writeCharacteristic', <String, dynamic>{
-          'deviceId': deviceId,
-          'serviceUuid': serviceUuid,
-          'characteristicUuid': characteristicUuid,
-          'value': value,
-          'writeType': writeType.name,
-        });
+      'deviceId': deviceId,
+      'serviceUuid': serviceUuid,
+      'characteristicUuid': characteristicUuid,
+      'value': value,
+      'writeType': writeType.name,
+    });
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.setCharacteristicNotification]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> setCharacteristicNotification({
     required String deviceId,
@@ -259,13 +341,16 @@ class MethodChannelFlutterBluetoothPlugin
   }) async {
     await methodChannel
         .invokeMethod<void>('setCharacteristicNotification', <String, dynamic>{
-          'deviceId': deviceId,
-          'serviceUuid': serviceUuid,
-          'characteristicUuid': characteristicUuid,
-          'enable': enable,
-        });
+      'deviceId': deviceId,
+      'serviceUuid': serviceUuid,
+      'characteristicUuid': characteristicUuid,
+      'enable': enable,
+    });
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.characteristicValues]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Stream<BluetoothCharacteristicValue> get characteristicValues {
     return _eventStream
@@ -273,6 +358,9 @@ class MethodChannelFlutterBluetoothPlugin
         .map(BluetoothCharacteristicValue.fromMap);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.readDescriptor]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<List<int>> readDescriptor({
     required String deviceId,
@@ -282,14 +370,17 @@ class MethodChannelFlutterBluetoothPlugin
   }) async {
     final response = await methodChannel
         .invokeListMethod<dynamic>('readDescriptor', <String, dynamic>{
-          'deviceId': deviceId,
-          'serviceUuid': serviceUuid,
-          'characteristicUuid': characteristicUuid,
-          'descriptorUuid': descriptorUuid,
-        });
+      'deviceId': deviceId,
+      'serviceUuid': serviceUuid,
+      'characteristicUuid': characteristicUuid,
+      'descriptorUuid': descriptorUuid,
+    });
     return _byteListFromPlatform(response);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.writeDescriptor]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> writeDescriptor({
     required String deviceId,
@@ -307,6 +398,9 @@ class MethodChannelFlutterBluetoothPlugin
     });
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.descriptorValues]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Stream<BluetoothDescriptorValue> get descriptorValues {
     return _eventStream
@@ -314,6 +408,9 @@ class MethodChannelFlutterBluetoothPlugin
         .map(BluetoothDescriptorValue.fromMap);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.readRssi]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<int> readRssi(String deviceId) async {
     return await methodChannel.invokeMethod<int>('readRssi', <String, dynamic>{
@@ -322,6 +419,9 @@ class MethodChannelFlutterBluetoothPlugin
         0;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.rssiUpdates]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Stream<BluetoothRssiEvent> get rssiUpdates {
     return _eventStream
@@ -329,6 +429,9 @@ class MethodChannelFlutterBluetoothPlugin
         .map(BluetoothRssiEvent.fromMap);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.requestMtu]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<int> requestMtu(String deviceId, int mtu) async {
     return await methodChannel.invokeMethod<int>(
@@ -338,6 +441,9 @@ class MethodChannelFlutterBluetoothPlugin
         0;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.getMaximumWriteLength]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<int> getMaximumWriteLength(
     String deviceId, {
@@ -353,6 +459,9 @@ class MethodChannelFlutterBluetoothPlugin
         0;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.mtuUpdates]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Stream<BluetoothMtuEvent> get mtuUpdates {
     return _eventStream
@@ -360,6 +469,9 @@ class MethodChannelFlutterBluetoothPlugin
         .map(BluetoothMtuEvent.fromMap);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.setPreferredPhy]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> setPreferredPhy({
     required String deviceId,
@@ -375,6 +487,9 @@ class MethodChannelFlutterBluetoothPlugin
     });
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.readPhy]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<BluetoothPhyEvent> readPhy(String deviceId) async {
     final response = await methodChannel.invokeMapMethod<String, dynamic>(
@@ -384,6 +499,9 @@ class MethodChannelFlutterBluetoothPlugin
     return BluetoothPhyEvent.fromMap(response ?? <String, dynamic>{});
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.phyUpdates]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Stream<BluetoothPhyEvent> get phyUpdates {
     return _eventStream
@@ -391,6 +509,9 @@ class MethodChannelFlutterBluetoothPlugin
         .map(BluetoothPhyEvent.fromMap);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.requestConnectionPriority]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<bool> requestConnectionPriority(
     String deviceId,
@@ -403,6 +524,9 @@ class MethodChannelFlutterBluetoothPlugin
         false;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.createBond]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<bool> createBond(String deviceId) async {
     return await methodChannel.invokeMethod<bool>(
@@ -412,6 +536,9 @@ class MethodChannelFlutterBluetoothPlugin
         false;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.removeBond]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<bool> removeBond(String deviceId) async {
     return await methodChannel.invokeMethod<bool>(
@@ -421,6 +548,9 @@ class MethodChannelFlutterBluetoothPlugin
         false;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.bondState]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Stream<BluetoothBondStateEvent> get bondState {
     return _eventStream
@@ -428,12 +558,18 @@ class MethodChannelFlutterBluetoothPlugin
         .map(BluetoothBondStateEvent.fromMap);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.isPeripheralSupported]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<bool> isPeripheralSupported() async {
     return await methodChannel.invokeMethod<bool>('isPeripheralSupported') ??
         false;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.startAdvertising]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> startAdvertising({
     BluetoothAdvertisementData advertisementData =
@@ -444,17 +580,23 @@ class MethodChannelFlutterBluetoothPlugin
   }) async {
     await methodChannel
         .invokeMethod<void>('startAdvertising', <String, dynamic>{
-          'advertisementData': advertisementData.toMap(),
-          'scanResponse': scanResponse?.toMap(),
-          'settings': settings.toMap(),
-        });
+      'advertisementData': advertisementData.toMap(),
+      'scanResponse': scanResponse?.toMap(),
+      'settings': settings.toMap(),
+    });
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.stopAdvertising]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> stopAdvertising() async {
     await methodChannel.invokeMethod<void>('stopAdvertising');
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.advertisingState]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Stream<BluetoothAdvertisingStateEvent> get advertisingState {
     return _eventStream
@@ -462,6 +604,9 @@ class MethodChannelFlutterBluetoothPlugin
         .map(BluetoothAdvertisingStateEvent.fromMap);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.setGattServerServices]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> setGattServerServices(
     List<BluetoothGattService> services,
@@ -474,11 +619,17 @@ class MethodChannelFlutterBluetoothPlugin
     );
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.clearGattServerServices]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> clearGattServerServices() async {
     await methodChannel.invokeMethod<void>('clearGattServerServices');
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.updateLocalCharacteristicValue]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> updateLocalCharacteristicValue({
     required String serviceUuid,
@@ -487,12 +638,15 @@ class MethodChannelFlutterBluetoothPlugin
   }) async {
     await methodChannel
         .invokeMethod<void>('updateLocalCharacteristicValue', <String, dynamic>{
-          'serviceUuid': serviceUuid,
-          'characteristicUuid': characteristicUuid,
-          'value': value,
-        });
+      'serviceUuid': serviceUuid,
+      'characteristicUuid': characteristicUuid,
+      'value': value,
+    });
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.notifyGattServerCharacteristic]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<bool> notifyGattServerCharacteristic({
     String? deviceId,
@@ -514,6 +668,9 @@ class MethodChannelFlutterBluetoothPlugin
         false;
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.gattServerRequests]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Stream<BluetoothGattServerRequest> get gattServerRequests {
     return _eventStream
@@ -521,6 +678,9 @@ class MethodChannelFlutterBluetoothPlugin
         .map(BluetoothGattServerRequest.fromMap);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.connectClassic]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> connectClassic({
     required String deviceId,
@@ -536,6 +696,9 @@ class MethodChannelFlutterBluetoothPlugin
     });
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.startClassicServer]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> startClassicServer({
     required String serviceUuid,
@@ -552,11 +715,17 @@ class MethodChannelFlutterBluetoothPlugin
     );
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.stopClassicServer]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> stopClassicServer() async {
     await methodChannel.invokeMethod<void>('stopClassicServer');
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.disconnectClassic]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> disconnectClassic(String deviceId) async {
     await methodChannel.invokeMethod<void>(
@@ -565,6 +734,9 @@ class MethodChannelFlutterBluetoothPlugin
     );
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.writeClassic]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Future<void> writeClassic(String deviceId, List<int> value) async {
     await methodChannel.invokeMethod<void>('writeClassic', <String, dynamic>{
@@ -573,6 +745,9 @@ class MethodChannelFlutterBluetoothPlugin
     });
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.classicConnectionState]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Stream<BluetoothClassicConnectionEvent> get classicConnectionState {
     return _eventStream
@@ -580,6 +755,9 @@ class MethodChannelFlutterBluetoothPlugin
         .map(BluetoothClassicConnectionEvent.fromMap);
   }
 
+  /// 实现 [FlutterBluetoothPluginPlatform.classicData]。
+  ///
+  /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
   Stream<BluetoothClassicDataEvent> get classicData {
     return _eventStream
