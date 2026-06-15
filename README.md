@@ -3,31 +3,36 @@
 A Flutter Bluetooth plugin backed by native Android and iOS APIs.
 
 The plugin exposes a MethodChannel API for Bluetooth permissions, adapter state,
-scanning, connections, GATT service discovery, characteristic and descriptor IO,
-notifications, RSSI, MTU, Android bonding, and Android connection priority.
+scanning, connections, GATT client operations, GATT server/peripheral mode,
+advertising, notifications, RSSI, MTU, PHY, Android bonding, Android connection
+priority, and Android Classic RFCOMM sockets.
 
 ## Platform coverage
 
-- Android: BluetoothAdapter, BluetoothLeScanner, BluetoothGatt, runtime permissions,
-  Classic discovery, bonded devices, bond/unbond, RSSI, MTU, and connection priority.
-- iOS: CoreBluetooth central APIs for authorization, adapter state, BLE scanning,
-  peripheral connections, service discovery, characteristic/descriptor IO,
-  notifications, and RSSI.
+- Android: `BluetoothAdapter`, `BluetoothLeScanner`, `BluetoothGatt`,
+  `BluetoothGattServer`, `BluetoothLeAdvertiser`, runtime permissions, Classic
+  discovery, RFCOMM client/server sockets, bonded devices, bond/unbond, RSSI,
+  MTU, LE PHY, adapter capability queries, and connection priority.
+- iOS: CoreBluetooth central APIs and peripheral-manager APIs for authorization,
+  adapter state, BLE scanning, peripheral connections, service discovery,
+  characteristic/descriptor IO, notifications, RSSI, local GATT services, and
+  advertising with local name/service UUIDs.
 - Web: currently returns unsupported states and empty streams.
 
 Some platform APIs do not exist publicly on both systems. iOS cannot enable
-Bluetooth programmatically, does not expose Classic Bluetooth discovery/pairing
-or public MTU negotiation, and does not expose Android-style connection priority.
-Those APIs return `false`, empty lists, or the current iOS maximum write length.
+Bluetooth programmatically, does not expose Classic Bluetooth discovery/pairing,
+does not expose Android-style connection priority, and does not expose public MTU
+negotiation. Those APIs return `false`, `notImplemented`, empty lists, or the
+current iOS maximum write length where appropriate.
 
 ## Permissions
 
-Call `requestPermissions()` before scanning or connecting:
+Call `requestPermissions()` before scanning, connecting, or advertising:
 
 ```dart
 final bluetooth = FlutterBluetoothPlugin();
 final permissions = await bluetooth.requestPermissions();
-final state = await bluetooth.getAdapterState();
+final info = await bluetooth.getAdapterInfo();
 ```
 
 Android permissions are declared in the plugin manifest and merged into the host
@@ -46,7 +51,7 @@ For iOS, the host app must include usage descriptions in `Info.plist`:
 <string>This app uses Bluetooth to communicate with nearby peripherals.</string>
 ```
 
-## Basic usage
+## Basic central usage
 
 ```dart
 final bluetooth = FlutterBluetoothPlugin();
@@ -67,7 +72,7 @@ await bluetooth.stopScan();
 await sub.cancel();
 ```
 
-## GATT usage
+## GATT client usage
 
 ```dart
 await bluetooth.connect(deviceId, timeout: const Duration(seconds: 15));
@@ -87,7 +92,57 @@ await bluetooth.writeCharacteristic(
 );
 ```
 
-Listen to streams for asynchronous native events:
+## Advertising and local GATT server
+
+```dart
+const serviceUuid = '0000fff0-0000-1000-8000-00805f9b34fb';
+const characteristicUuid = '0000fff1-0000-1000-8000-00805f9b34fb';
+
+await bluetooth.setGattServerServices(
+  const [
+    BluetoothGattService(
+      uuid: serviceUuid,
+      characteristics: [
+        BluetoothGattCharacteristic(
+          uuid: characteristicUuid,
+          serviceUuid: serviceUuid,
+          properties: ['read', 'write', 'notify'],
+          permissions: ['read', 'write'],
+          value: [72, 101, 108, 108, 111],
+        ),
+      ],
+    ),
+  ],
+);
+
+await bluetooth.startAdvertising(
+  advertisementData: const BluetoothAdvertisementData(
+    localName: 'Flutter BT',
+    serviceUuids: [serviceUuid],
+    includeDeviceName: true,
+  ),
+);
+
+bluetooth.gattServerRequests.listen((event) {
+  print('${event.event} ${event.deviceId} ${event.value}');
+});
+```
+
+## Android Classic RFCOMM
+
+```dart
+const sppUuid = '00001101-0000-1000-8000-00805f9b34fb';
+
+await bluetooth.startClassicServer(serviceUuid: sppUuid);
+await bluetooth.connectClassic(deviceId: macAddress, serviceUuid: sppUuid);
+await bluetooth.writeClassic(macAddress, [1, 2, 3]);
+
+bluetooth.classicData.listen((event) {
+  print('classic ${event.deviceId}: ${event.value}');
+});
+```
+
+## Event streams
 
 - `adapterState`
 - `scanResults`
@@ -96,4 +151,9 @@ Listen to streams for asynchronous native events:
 - `descriptorValues`
 - `rssiUpdates`
 - `mtuUpdates`
+- `phyUpdates`
 - `bondState`
+- `advertisingState`
+- `gattServerRequests`
+- `classicConnectionState`
+- `classicData`

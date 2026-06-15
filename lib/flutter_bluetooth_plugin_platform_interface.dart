@@ -37,6 +37,18 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
     throw UnimplementedError('getAdapterState() has not been implemented.');
   }
 
+  Future<BluetoothAdapterInfo> getAdapterInfo() {
+    throw UnimplementedError('getAdapterInfo() has not been implemented.');
+  }
+
+  Future<bool> isScanning() {
+    throw UnimplementedError('isScanning() has not been implemented.');
+  }
+
+  Future<bool> setAdapterName(String name) {
+    throw UnimplementedError('setAdapterName() has not been implemented.');
+  }
+
   Stream<BluetoothAdapterState> get adapterState {
     throw UnimplementedError('adapterState has not been implemented.');
   }
@@ -84,6 +96,14 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
     List<String> serviceUuids = const <String>[],
   }) {
     throw UnimplementedError('getConnectedDevices() has not been implemented.');
+  }
+
+  Future<BluetoothDevice?> getDevice(String deviceId) {
+    throw UnimplementedError('getDevice() has not been implemented.');
+  }
+
+  Future<List<BluetoothDevice>> getDevices(List<String> deviceIds) {
+    throw UnimplementedError('getDevices() has not been implemented.');
   }
 
   Future<void> connect(
@@ -178,8 +198,34 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
     throw UnimplementedError('requestMtu() has not been implemented.');
   }
 
+  Future<int> getMaximumWriteLength(
+    String deviceId, {
+    bool withoutResponse = true,
+  }) {
+    throw UnimplementedError(
+      'getMaximumWriteLength() has not been implemented.',
+    );
+  }
+
   Stream<BluetoothMtuEvent> get mtuUpdates {
     throw UnimplementedError('mtuUpdates has not been implemented.');
+  }
+
+  Future<void> setPreferredPhy({
+    required String deviceId,
+    required BluetoothPhy txPhy,
+    required BluetoothPhy rxPhy,
+    int phyOptions = 0,
+  }) {
+    throw UnimplementedError('setPreferredPhy() has not been implemented.');
+  }
+
+  Future<BluetoothPhyEvent> readPhy(String deviceId) {
+    throw UnimplementedError('readPhy() has not been implemented.');
+  }
+
+  Stream<BluetoothPhyEvent> get phyUpdates {
+    throw UnimplementedError('phyUpdates has not been implemented.');
   }
 
   Future<bool> requestConnectionPriority(
@@ -201,5 +247,106 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
 
   Stream<BluetoothBondStateEvent> get bondState {
     throw UnimplementedError('bondState has not been implemented.');
+  }
+
+  Future<bool> isPeripheralSupported() {
+    throw UnimplementedError(
+      'isPeripheralSupported() has not been implemented.',
+    );
+  }
+
+  Future<void> startAdvertising({
+    BluetoothAdvertisementData advertisementData =
+        const BluetoothAdvertisementData(),
+    BluetoothAdvertisementData? scanResponse,
+    BluetoothAdvertisingSettings settings =
+        const BluetoothAdvertisingSettings(),
+  }) {
+    throw UnimplementedError('startAdvertising() has not been implemented.');
+  }
+
+  Future<void> stopAdvertising() {
+    throw UnimplementedError('stopAdvertising() has not been implemented.');
+  }
+
+  Stream<BluetoothAdvertisingStateEvent> get advertisingState {
+    throw UnimplementedError('advertisingState has not been implemented.');
+  }
+
+  Future<void> setGattServerServices(List<BluetoothGattService> services) {
+    throw UnimplementedError(
+      'setGattServerServices() has not been implemented.',
+    );
+  }
+
+  Future<void> clearGattServerServices() {
+    throw UnimplementedError(
+      'clearGattServerServices() has not been implemented.',
+    );
+  }
+
+  Future<void> updateLocalCharacteristicValue({
+    required String serviceUuid,
+    required String characteristicUuid,
+    required List<int> value,
+  }) {
+    throw UnimplementedError(
+      'updateLocalCharacteristicValue() has not been implemented.',
+    );
+  }
+
+  Future<bool> notifyGattServerCharacteristic({
+    String? deviceId,
+    required String serviceUuid,
+    required String characteristicUuid,
+    required List<int> value,
+    bool confirm = false,
+  }) {
+    throw UnimplementedError(
+      'notifyGattServerCharacteristic() has not been implemented.',
+    );
+  }
+
+  Stream<BluetoothGattServerRequest> get gattServerRequests {
+    throw UnimplementedError('gattServerRequests has not been implemented.');
+  }
+
+  Future<void> connectClassic({
+    required String deviceId,
+    required String serviceUuid,
+    bool secure = true,
+    Duration? timeout,
+  }) {
+    throw UnimplementedError('connectClassic() has not been implemented.');
+  }
+
+  Future<void> startClassicServer({
+    required String serviceUuid,
+    String serviceName = 'FlutterBluetoothPlugin',
+    bool secure = true,
+  }) {
+    throw UnimplementedError('startClassicServer() has not been implemented.');
+  }
+
+  Future<void> stopClassicServer() {
+    throw UnimplementedError('stopClassicServer() has not been implemented.');
+  }
+
+  Future<void> disconnectClassic(String deviceId) {
+    throw UnimplementedError('disconnectClassic() has not been implemented.');
+  }
+
+  Future<void> writeClassic(String deviceId, List<int> value) {
+    throw UnimplementedError('writeClassic() has not been implemented.');
+  }
+
+  Stream<BluetoothClassicConnectionEvent> get classicConnectionState {
+    throw UnimplementedError(
+      'classicConnectionState has not been implemented.',
+    );
+  }
+
+  Stream<BluetoothClassicDataEvent> get classicData {
+    throw UnimplementedError('classicData has not been implemented.');
   }
 }

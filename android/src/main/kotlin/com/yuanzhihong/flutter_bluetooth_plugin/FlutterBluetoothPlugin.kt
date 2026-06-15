@@ -9,10 +9,17 @@ import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
+import android.bluetooth.BluetoothGattServer
+import android.bluetooth.BluetoothGattServerCallback
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothServerSocket
+import android.bluetooth.BluetoothSocket
 import android.bluetooth.BluetoothStatusCodes
+import android.bluetooth.le.AdvertiseCallback
+import android.bluetooth.le.AdvertiseData
+import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
@@ -38,6 +45,7 @@ import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import java.util.Locale
 import java.util.UUID
+import kotlin.concurrent.thread
 
 /** Flutter Bluetooth plugin for Android Bluetooth Classic discovery and BLE GATT central APIs. */
 class FlutterBluetoothPlugin :
@@ -75,6 +83,18 @@ class FlutterBluetoothPlugin :
     private val pendingNotificationWrites = mutableMapOf<String, Result>()
     private val pendingRssiReads = mutableMapOf<String, Result>()
     private val pendingMtuRequests = mutableMapOf<String, Result>()
+    private val pendingPhyReads = mutableMapOf<String, Result>()
+    private val knownMtus = mutableMapOf<String, Int>()
+
+    private var gattServer: BluetoothGattServer? = null
+    private var advertiseCallback: AdvertiseCallback? = null
+    private var pendingAdvertiseResult: Result? = null
+    private val localCharacteristicValues = mutableMapOf<String, ByteArray>()
+    private val localDescriptorValues = mutableMapOf<String, ByteArray>()
+
+    private val classicSockets = mutableMapOf<String, BluetoothSocket>()
+    private var classicServerSocket: BluetoothServerSocket? = null
+    @Volatile private var classicServerRunning = false
 
     private val receiver =
         object : BroadcastReceiver() {
@@ -114,6 +134,10 @@ class FlutterBluetoothPlugin :
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         stopScanInternal()
+        stopAdvertisingInternal()
+        closeGattServer()
+        stopClassicServerInternal()
+        closeAllClassicSockets()
         closeAllGatts()
         unregisterReceiver()
         methodChannel.setMethodCallHandler(null)
@@ -161,6 +185,9 @@ class FlutterBluetoothPlugin :
                 "getPlatformVersion" -> result.success("Android ${Build.VERSION.RELEASE}")
                 "isSupported" -> result.success(isSupported())
                 "getAdapterState" -> result.success(currentAdapterStateString())
+                "getAdapterInfo" -> result.success(adapterInfoMap())
+                "isScanning" -> result.success(isScanning())
+                "setAdapterName" -> setAdapterName(call, result)
                 "checkPermissions" -> result.success(permissionMap())
                 "requestPermissions" -> requestPermissions(result)
                 "requestEnable" -> requestEnable(result)
@@ -172,6 +199,8 @@ class FlutterBluetoothPlugin :
                 }
                 "getBondedDevices" -> getBondedDevices(result)
                 "getConnectedDevices" -> getConnectedDevices(result)
+                "getDevice" -> getDevice(call, result)
+                "getDevices" -> getDevices(call, result)
                 "connect" -> connect(call, result)
                 "disconnect" -> disconnect(call, result)
                 "getConnectionState" -> getConnectionState(call, result)
@@ -183,9 +212,35 @@ class FlutterBluetoothPlugin :
                 "writeDescriptor" -> writeDescriptor(call, result)
                 "readRssi" -> readRssi(call, result)
                 "requestMtu" -> requestMtu(call, result)
+                "getMaximumWriteLength" -> getMaximumWriteLength(call, result)
+                "setPreferredPhy" -> setPreferredPhy(call, result)
+                "readPhy" -> readPhy(call, result)
                 "requestConnectionPriority" -> requestConnectionPriority(call, result)
                 "createBond" -> createBond(call, result)
                 "removeBond" -> removeBond(call, result)
+                "isPeripheralSupported" -> result.success(isPeripheralSupported())
+                "startAdvertising" -> startAdvertising(call, result)
+                "stopAdvertising" -> {
+                    stopAdvertisingInternal()
+                    result.success(null)
+                }
+                "setGattServerServices" -> setGattServerServices(call, result)
+                "clearGattServerServices" -> {
+                    gattServer?.clearServices()
+                    localCharacteristicValues.clear()
+                    localDescriptorValues.clear()
+                    result.success(null)
+                }
+                "updateLocalCharacteristicValue" -> updateLocalCharacteristicValue(call, result)
+                "notifyGattServerCharacteristic" -> notifyGattServerCharacteristic(call, result)
+                "connectClassic" -> connectClassic(call, result)
+                "startClassicServer" -> startClassicServer(call, result)
+                "stopClassicServer" -> {
+                    stopClassicServerInternal()
+                    result.success(null)
+                }
+                "disconnectClassic" -> disconnectClassic(call, result)
+                "writeClassic" -> writeClassic(call, result)
                 else -> result.notImplemented()
             }
         } catch (error: SecurityException) {
@@ -239,6 +294,45 @@ class FlutterBluetoothPlugin :
             BluetoothAdapter.STATE_TURNING_OFF -> "turningOff"
             else -> if (adapter == null) "unsupported" else "unknown"
         }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun adapterInfoMap(): Map<String, Any?> {
+        val adapter = adapter
+        return mapOf(
+            "isSupported" to (adapter != null),
+            "state" to currentAdapterStateString(),
+            "name" to if (hasConnectPermission()) adapter?.name else null,
+            "address" to if (hasConnectPermission()) adapter?.address else null,
+            "isBleSupported" to context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE),
+            "isMultipleAdvertisementSupported" to (adapter?.isMultipleAdvertisementSupported == true),
+            "isOffloadedFilteringSupported" to (adapter?.isOffloadedFilteringSupported == true),
+            "isOffloadedScanBatchingSupported" to (adapter?.isOffloadedScanBatchingSupported == true),
+            "isLe2MPhySupported" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) adapter?.isLe2MPhySupported == true else false,
+            "isLeCodedPhySupported" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) adapter?.isLeCodedPhySupported == true else false,
+            "isLeExtendedAdvertisingSupported" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) adapter?.isLeExtendedAdvertisingSupported == true else false,
+            "isLePeriodicAdvertisingSupported" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) adapter?.isLePeriodicAdvertisingSupported == true else false,
+            "isDiscovering" to (adapter?.isDiscovering == true || scanCallback != null),
+        ).withoutNullValues()
+    }
+
+    private fun isScanning(): Boolean {
+        return scanCallback != null || adapter?.isDiscovering == true
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun setAdapterName(
+        call: MethodCall,
+        result: Result,
+    ) {
+        val name = call.argument<String>("name") ?: return result.error("invalid_arguments", "name is required.", null)
+        val adapter = adapter ?: return result.success(false)
+        if (!hasConnectPermission()) {
+            result.error("permission_denied", "BLUETOOTH_CONNECT permission is required.", null)
+            return
+        }
+        @Suppress("DEPRECATION")
+        result.success(adapter.setName(name))
     }
 
     private fun permissionMap(): Map<String, String> {
@@ -531,6 +625,33 @@ class FlutterBluetoothPlugin :
     }
 
     @SuppressLint("MissingPermission")
+    private fun getDevice(
+        call: MethodCall,
+        result: Result,
+    ) {
+        val device = remoteDevice(call)
+        result.success(device?.let { deviceMap(it) })
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun getDevices(
+        call: MethodCall,
+        result: Result,
+    ) {
+        val ids = call.argument<List<String>>("deviceIds") ?: emptyList()
+        val adapter = adapter
+        if (adapter == null) {
+            result.success(emptyList<Map<String, Any?>>())
+            return
+        }
+        result.success(
+            ids.mapNotNull { id ->
+                runCatching { adapter.getRemoteDevice(id) }.getOrNull()?.let { deviceMap(it) }
+            },
+        )
+    }
+
+    @SuppressLint("MissingPermission")
     private fun connect(
         call: MethodCall,
         result: Result,
@@ -775,6 +896,51 @@ class FlutterBluetoothPlugin :
         }
     }
 
+    private fun getMaximumWriteLength(
+        call: MethodCall,
+        result: Result,
+    ) {
+        val deviceId = call.argument<String>("deviceId") ?: return result.error("invalid_arguments", "deviceId is required.", null)
+        if (!gatts.containsKey(deviceId)) {
+            result.error("not_connected", "Device is not connected.", null)
+            return
+        }
+        result.success(lastKnownMtu(deviceId) - 3)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun setPreferredPhy(
+        call: MethodCall,
+        result: Result,
+    ) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            result.error("unsupported", "LE PHY APIs require Android 8.0 or newer.", null)
+            return
+        }
+        val deviceId = call.argument<String>("deviceId") ?: return result.error("invalid_arguments", "deviceId is required.", null)
+        val gatt = gatts[deviceId] ?: return result.error("not_connected", "Device is not connected.", null)
+        val txPhy = androidPhy(call.argument<String>("txPhy"))
+        val rxPhy = androidPhy(call.argument<String>("rxPhy"))
+        val phyOptions = call.argument<Int>("phyOptions") ?: 0
+        gatt.setPreferredPhy(txPhy, rxPhy, phyOptions)
+        result.success(null)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun readPhy(
+        call: MethodCall,
+        result: Result,
+    ) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            result.success(mapOf("deviceId" to (call.argument<String>("deviceId") ?: ""), "txPhy" to "unknown", "rxPhy" to "unknown"))
+            return
+        }
+        val deviceId = call.argument<String>("deviceId") ?: return result.error("invalid_arguments", "deviceId is required.", null)
+        val gatt = gatts[deviceId] ?: return result.error("not_connected", "Device is not connected.", null)
+        pendingPhyReads[deviceId] = result
+        gatt.readPhy()
+    }
+
     @SuppressLint("MissingPermission")
     private fun requestConnectionPriority(
         call: MethodCall,
@@ -843,6 +1009,26 @@ class FlutterBluetoothPlugin :
                     closeGatt(deviceId)
                 }
                 sendConnectionState(deviceId, state, status)
+            }
+
+            override fun onPhyUpdate(
+                gatt: BluetoothGatt,
+                txPhy: Int,
+                rxPhy: Int,
+                status: Int,
+            ) {
+                sendPhyEvent(deviceId, txPhy, rxPhy, status)
+            }
+
+            override fun onPhyRead(
+                gatt: BluetoothGatt,
+                txPhy: Int,
+                rxPhy: Int,
+                status: Int,
+            ) {
+                val event = phyEventMap(deviceId, txPhy, rxPhy, status)
+                pendingPhyReads.remove(deviceId)?.success(event)
+                sendEvent(event)
             }
 
             override fun onServicesDiscovered(
@@ -953,6 +1139,9 @@ class FlutterBluetoothPlugin :
                 mtu: Int,
                 status: Int,
             ) {
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    knownMtus[deviceId] = mtu
+                }
                 pendingMtuRequests.remove(deviceId)?.let { result ->
                     if (status == BluetoothGatt.GATT_SUCCESS) {
                         result.success(mtu)
@@ -1073,6 +1262,51 @@ class FlutterBluetoothPlugin :
         )
     }
 
+    private fun sendPhyEvent(
+        deviceId: String,
+        txPhy: Int,
+        rxPhy: Int,
+        status: Int,
+    ) {
+        sendEvent(phyEventMap(deviceId, txPhy, rxPhy, status))
+    }
+
+    private fun phyEventMap(
+        deviceId: String,
+        txPhy: Int,
+        rxPhy: Int,
+        status: Int,
+    ): Map<String, Any?> {
+        return mapOf(
+            "type" to "phy",
+            "deviceId" to deviceId,
+            "txPhy" to phyString(txPhy),
+            "rxPhy" to phyString(rxPhy),
+            "status" to status,
+        )
+    }
+
+    private fun androidPhy(value: String?): Int {
+        return when (value) {
+            "le2m" -> BluetoothDevice.PHY_LE_2M
+            "leCoded" -> BluetoothDevice.PHY_LE_CODED
+            else -> BluetoothDevice.PHY_LE_1M
+        }
+    }
+
+    private fun phyString(value: Int): String {
+        return when (value) {
+            BluetoothDevice.PHY_LE_1M -> "le1m"
+            BluetoothDevice.PHY_LE_2M -> "le2m"
+            BluetoothDevice.PHY_LE_CODED -> "leCoded"
+            else -> "unknown"
+        }
+    }
+
+    private fun lastKnownMtu(deviceId: String): Int {
+        return knownMtus[deviceId] ?: 23
+    }
+
     private fun clearConnectTimeout(deviceId: String) {
         pendingConnectTimeouts.remove(deviceId)?.let { mainHandler.removeCallbacks(it) }
     }
@@ -1080,12 +1314,561 @@ class FlutterBluetoothPlugin :
     @SuppressLint("MissingPermission")
     private fun closeGatt(deviceId: String) {
         runCatching { gatts.remove(deviceId)?.close() }
+        knownMtus.remove(deviceId)
     }
 
     @SuppressLint("MissingPermission")
     private fun closeAllGatts() {
         gatts.keys.toList().forEach { closeGatt(it) }
         connectionStates.clear()
+    }
+
+    private fun isPeripheralSupported(): Boolean {
+        val adapter = adapter ?: return false
+        return context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) &&
+            adapter.bluetoothLeAdvertiser != null
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startAdvertising(
+        call: MethodCall,
+        result: Result,
+    ) {
+        if (!hasAdvertisePermission()) {
+            result.error("permission_denied", "BLUETOOTH_ADVERTISE permission is required.", null)
+            return
+        }
+        val advertiser = adapter?.bluetoothLeAdvertiser
+        if (advertiser == null) {
+            result.error("unsupported", "BLE advertising is not supported on this device.", null)
+            return
+        }
+        if (pendingAdvertiseResult != null) {
+            result.error("operation_in_progress", "An advertising request is already in progress.", null)
+            return
+        }
+        stopAdvertisingInternal()
+        val args = call.arguments as? Map<*, *> ?: emptyMap<String, Any?>()
+        val settings = advertisingSettings(args["settings"] as? Map<*, *>)
+        val advertiseData = advertiseData(args["advertisementData"] as? Map<*, *>)
+        val scanResponse = (args["scanResponse"] as? Map<*, *>)?.let { advertiseData(it) }
+        pendingAdvertiseResult = result
+        advertiseCallback =
+            object : AdvertiseCallback() {
+                override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
+                    pendingAdvertiseResult?.success(null)
+                    pendingAdvertiseResult = null
+                    sendEvent(mapOf("type" to "advertisingState", "isAdvertising" to true))
+                }
+
+                override fun onStartFailure(errorCode: Int) {
+                    pendingAdvertiseResult?.error("advertising_failed", "Advertising failed with code $errorCode.", errorCode)
+                    pendingAdvertiseResult = null
+                    advertiseCallback = null
+                    sendEvent(mapOf("type" to "advertisingState", "isAdvertising" to false, "errorCode" to errorCode))
+                }
+            }
+        advertiser.startAdvertising(settings, advertiseData, scanResponse, advertiseCallback)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun stopAdvertisingInternal() {
+        advertiseCallback?.let { callback ->
+            runCatching { adapter?.bluetoothLeAdvertiser?.stopAdvertising(callback) }
+        }
+        advertiseCallback = null
+        sendEvent(mapOf("type" to "advertisingState", "isAdvertising" to false))
+    }
+
+    private fun advertisingSettings(raw: Map<*, *>?): AdvertiseSettings {
+        val mode =
+            when (raw?.get("mode") as? String) {
+                "lowPower" -> AdvertiseSettings.ADVERTISE_MODE_LOW_POWER
+                "lowLatency" -> AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY
+                else -> AdvertiseSettings.ADVERTISE_MODE_BALANCED
+            }
+        val txPower =
+            when (raw?.get("txPowerLevel") as? String) {
+                "ultraLow" -> AdvertiseSettings.ADVERTISE_TX_POWER_ULTRA_LOW
+                "low" -> AdvertiseSettings.ADVERTISE_TX_POWER_LOW
+                "high" -> AdvertiseSettings.ADVERTISE_TX_POWER_HIGH
+                else -> AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM
+            }
+        return AdvertiseSettings.Builder()
+            .setAdvertiseMode(mode)
+            .setTxPowerLevel(txPower)
+            .setConnectable(raw?.get("connectable") as? Boolean ?: true)
+            .setTimeout((raw?.get("timeoutMs") as? Number)?.toInt() ?: 0)
+            .build()
+    }
+
+    private fun advertiseData(raw: Map<*, *>?): AdvertiseData {
+        val builder = AdvertiseData.Builder()
+            .setIncludeDeviceName(raw?.get("includeDeviceName") as? Boolean ?: false)
+            .setIncludeTxPowerLevel(raw?.get("includeTxPowerLevel") as? Boolean ?: false)
+        (raw?.get("serviceUuids") as? List<*>)?.forEach { uuid ->
+            if (uuid != null) builder.addServiceUuid(ParcelUuid(normalizeUuid(uuid.toString())))
+        }
+        (raw?.get("manufacturerData") as? Map<*, *>)?.forEach { (key, value) ->
+            val id = key.toString().toIntOrNull()
+            if (id != null) builder.addManufacturerData(id, (value as? List<Int>)?.toByteArray() ?: ByteArray(0))
+        }
+        (raw?.get("serviceData") as? Map<*, *>)?.forEach { (key, value) ->
+            builder.addServiceData(ParcelUuid(normalizeUuid(key.toString())), (value as? List<Int>)?.toByteArray() ?: ByteArray(0))
+        }
+        return builder.build()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun setGattServerServices(
+        call: MethodCall,
+        result: Result,
+    ) {
+        if (!hasConnectPermission()) {
+            result.error("permission_denied", "BLUETOOTH_CONNECT permission is required.", null)
+            return
+        }
+        val server = ensureGattServer() ?: return result.error("unsupported", "Unable to open a GATT server.", null)
+        server.clearServices()
+        localCharacteristicValues.clear()
+        localDescriptorValues.clear()
+        val services = call.argument<List<Map<String, Any?>>>("services") ?: emptyList()
+        services.forEach { serviceMap ->
+            server.addService(localGattService(serviceMap))
+        }
+        result.success(null)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun ensureGattServer(): BluetoothGattServer? {
+        if (gattServer == null) {
+            gattServer = bluetoothManager?.openGattServer(context, createGattServerCallback())
+        }
+        return gattServer
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun closeGattServer() {
+        runCatching { gattServer?.close() }
+        gattServer = null
+        localCharacteristicValues.clear()
+        localDescriptorValues.clear()
+    }
+
+    private fun localGattService(map: Map<String, Any?>): BluetoothGattService {
+        val serviceUuid = normalizeUuid(map["uuid"].toString())
+        val type = if (map["isPrimary"] == false) BluetoothGattService.SERVICE_TYPE_SECONDARY else BluetoothGattService.SERVICE_TYPE_PRIMARY
+        val service = BluetoothGattService(serviceUuid, type)
+        val characteristics = map["characteristics"] as? List<*> ?: emptyList<Any?>()
+        characteristics.forEach { item ->
+            val characteristicMap = item as? Map<*, *> ?: return@forEach
+            val characteristic = localGattCharacteristic(serviceUuid.toString(), characteristicMap)
+            service.addCharacteristic(characteristic)
+        }
+        return service
+    }
+
+    private fun localGattCharacteristic(
+        serviceUuid: String,
+        map: Map<*, *>,
+    ): BluetoothGattCharacteristic {
+        val uuid = normalizeUuid(map["uuid"].toString())
+        val properties = androidCharacteristicProperties(map["properties"] as? List<*>)
+        val permissions = androidAttributePermissions(map["permissions"] as? List<*>)
+        val characteristic = BluetoothGattCharacteristic(uuid, properties, permissions)
+        val value = (map["value"] as? List<Int>)?.toByteArray() ?: ByteArray(0)
+        localCharacteristicValues[characteristicKey("local", serviceUuid, uuid.toString())] = value
+        val descriptors = map["descriptors"] as? List<*> ?: emptyList<Any?>()
+        descriptors.forEach { item ->
+            val descriptorMap = item as? Map<*, *> ?: return@forEach
+            val descriptorUuid = normalizeUuid(descriptorMap["uuid"].toString())
+            val descriptor = BluetoothGattDescriptor(descriptorUuid, permissions)
+            @Suppress("DEPRECATION")
+            descriptor.value = (descriptorMap["value"] as? List<Int>)?.toByteArray() ?: ByteArray(0)
+            localDescriptorValues[descriptorKey("local", serviceUuid, uuid.toString(), descriptorUuid.toString())] =
+                descriptor.value ?: ByteArray(0)
+            characteristic.addDescriptor(descriptor)
+        }
+        return characteristic
+    }
+
+    private fun androidCharacteristicProperties(raw: List<*>?): Int {
+        var value = 0
+        val names = raw?.map { it.toString() } ?: emptyList()
+        if ("broadcast" in names) value = value or BluetoothGattCharacteristic.PROPERTY_BROADCAST
+        if ("read" in names) value = value or BluetoothGattCharacteristic.PROPERTY_READ
+        if ("writeWithoutResponse" in names) value = value or BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
+        if ("write" in names) value = value or BluetoothGattCharacteristic.PROPERTY_WRITE
+        if ("notify" in names) value = value or BluetoothGattCharacteristic.PROPERTY_NOTIFY
+        if ("indicate" in names) value = value or BluetoothGattCharacteristic.PROPERTY_INDICATE
+        if ("authenticatedSignedWrites" in names) value = value or BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE
+        if ("extendedProperties" in names) value = value or BluetoothGattCharacteristic.PROPERTY_EXTENDED_PROPS
+        return value
+    }
+
+    private fun androidAttributePermissions(raw: List<*>?): Int {
+        var value = 0
+        val names = raw?.map { it.toString() } ?: emptyList()
+        if ("read" in names || names.isEmpty()) value = value or BluetoothGattCharacteristic.PERMISSION_READ
+        if ("readEncrypted" in names) value = value or BluetoothGattCharacteristic.PERMISSION_READ_ENCRYPTED
+        if ("readEncryptedMitm" in names) value = value or BluetoothGattCharacteristic.PERMISSION_READ_ENCRYPTED_MITM
+        if ("write" in names || names.isEmpty()) value = value or BluetoothGattCharacteristic.PERMISSION_WRITE
+        if ("writeEncrypted" in names) value = value or BluetoothGattCharacteristic.PERMISSION_WRITE_ENCRYPTED
+        if ("writeEncryptedMitm" in names) value = value or BluetoothGattCharacteristic.PERMISSION_WRITE_ENCRYPTED_MITM
+        if ("writeSigned" in names) value = value or BluetoothGattCharacteristic.PERMISSION_WRITE_SIGNED
+        if ("writeSignedMitm" in names) value = value or BluetoothGattCharacteristic.PERMISSION_WRITE_SIGNED_MITM
+        return value
+    }
+
+    private fun updateLocalCharacteristicValue(
+        call: MethodCall,
+        result: Result,
+    ) {
+        val serviceUuid = call.argument<String>("serviceUuid") ?: return result.error("invalid_arguments", "serviceUuid is required.", null)
+        val characteristicUuid = call.argument<String>("characteristicUuid") ?: return result.error("invalid_arguments", "characteristicUuid is required.", null)
+        val value = call.argument<List<Int>>("value")?.toByteArray() ?: ByteArray(0)
+        localCharacteristicValues[characteristicKey("local", serviceUuid, characteristicUuid)] = value
+        findLocalCharacteristic(serviceUuid, characteristicUuid)?.let {
+            @Suppress("DEPRECATION")
+            it.value = value
+        }
+        result.success(null)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun notifyGattServerCharacteristic(
+        call: MethodCall,
+        result: Result,
+    ) {
+        val serviceUuid = call.argument<String>("serviceUuid") ?: return result.error("invalid_arguments", "serviceUuid is required.", null)
+        val characteristicUuid = call.argument<String>("characteristicUuid") ?: return result.error("invalid_arguments", "characteristicUuid is required.", null)
+        val characteristic = findLocalCharacteristic(serviceUuid, characteristicUuid)
+            ?: return result.error("characteristic_not_found", "Local characteristic was not found.", null)
+        val value = call.argument<List<Int>>("value")?.toByteArray() ?: ByteArray(0)
+        val confirm = call.argument<Boolean>("confirm") ?: false
+        @Suppress("DEPRECATION")
+        characteristic.value = value
+        localCharacteristicValues[characteristicKey("local", serviceUuid, characteristicUuid)] = value
+        val server = gattServer ?: return result.error("gatt_server_unavailable", "GATT server is not open.", null)
+        val deviceId = call.argument<String>("deviceId")
+        val devices = if (deviceId == null) {
+            bluetoothManager?.getConnectedDevices(BluetoothProfile.GATT_SERVER) ?: emptyList()
+        } else {
+            listOfNotNull(adapter?.getRemoteDevice(deviceId))
+        }
+        val sent = devices.map { device ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                server.notifyCharacteristicChanged(device, characteristic, confirm, value) == BluetoothStatusCodes.SUCCESS
+            } else {
+                @Suppress("DEPRECATION")
+                server.notifyCharacteristicChanged(device, characteristic, confirm)
+            }
+        }
+        result.success(sent.any { it })
+    }
+
+    private fun findLocalCharacteristic(
+        serviceUuid: String,
+        characteristicUuid: String,
+    ): BluetoothGattCharacteristic? {
+        return gattServer
+            ?.getService(normalizeUuid(serviceUuid))
+            ?.getCharacteristic(normalizeUuid(characteristicUuid))
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun createGattServerCallback(): BluetoothGattServerCallback {
+        return object : BluetoothGattServerCallback() {
+            override fun onConnectionStateChange(
+                device: BluetoothDevice,
+                status: Int,
+                newState: Int,
+            ) {
+                sendEvent(
+                    mapOf(
+                        "type" to "gattServerRequest",
+                        "event" to "connectionState",
+                        "deviceId" to device.address,
+                        "state" to if (newState == BluetoothProfile.STATE_CONNECTED) "connected" else "disconnected",
+                        "status" to status,
+                    ),
+                )
+            }
+
+            override fun onServiceAdded(
+                status: Int,
+                service: BluetoothGattService,
+            ) {
+                sendEvent(
+                    mapOf(
+                        "type" to "gattServerRequest",
+                        "event" to "serviceAdded",
+                        "deviceId" to "",
+                        "serviceUuid" to service.uuid.toString(),
+                        "status" to status,
+                    ),
+                )
+            }
+
+            override fun onCharacteristicReadRequest(
+                device: BluetoothDevice,
+                requestId: Int,
+                offset: Int,
+                characteristic: BluetoothGattCharacteristic,
+            ) {
+                val key = characteristicKey("local", characteristic.service.uuid.toString(), characteristic.uuid.toString())
+                val value = localCharacteristicValues[key] ?: ByteArray(0)
+                val response = value.drop(offset.coerceAtMost(value.size)).toByteArray()
+                gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, response)
+                sendGattServerRequest("characteristicRead", device, requestId, offset, characteristic, null, response, false, true)
+            }
+
+            override fun onCharacteristicWriteRequest(
+                device: BluetoothDevice,
+                requestId: Int,
+                characteristic: BluetoothGattCharacteristic,
+                preparedWrite: Boolean,
+                responseNeeded: Boolean,
+                offset: Int,
+                value: ByteArray,
+            ) {
+                val key = characteristicKey("local", characteristic.service.uuid.toString(), characteristic.uuid.toString())
+                localCharacteristicValues[key] = value
+                @Suppress("DEPRECATION")
+                characteristic.value = value
+                if (responseNeeded) {
+                    gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
+                }
+                sendGattServerRequest("characteristicWrite", device, requestId, offset, characteristic, null, value, preparedWrite, responseNeeded)
+            }
+
+            override fun onDescriptorReadRequest(
+                device: BluetoothDevice,
+                requestId: Int,
+                offset: Int,
+                descriptor: BluetoothGattDescriptor,
+            ) {
+                val characteristic = descriptor.characteristic
+                val key = descriptorKey("local", characteristic.service.uuid.toString(), characteristic.uuid.toString(), descriptor.uuid.toString())
+                val value = localDescriptorValues[key] ?: ByteArray(0)
+                val response = value.drop(offset.coerceAtMost(value.size)).toByteArray()
+                gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, response)
+                sendGattServerRequest("descriptorRead", device, requestId, offset, characteristic, descriptor, response, false, true)
+            }
+
+            override fun onDescriptorWriteRequest(
+                device: BluetoothDevice,
+                requestId: Int,
+                descriptor: BluetoothGattDescriptor,
+                preparedWrite: Boolean,
+                responseNeeded: Boolean,
+                offset: Int,
+                value: ByteArray,
+            ) {
+                val characteristic = descriptor.characteristic
+                val key = descriptorKey("local", characteristic.service.uuid.toString(), characteristic.uuid.toString(), descriptor.uuid.toString())
+                localDescriptorValues[key] = value
+                @Suppress("DEPRECATION")
+                descriptor.value = value
+                if (responseNeeded) {
+                    gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
+                }
+                sendGattServerRequest("descriptorWrite", device, requestId, offset, characteristic, descriptor, value, preparedWrite, responseNeeded)
+            }
+
+            override fun onNotificationSent(
+                device: BluetoothDevice,
+                status: Int,
+            ) {
+                sendEvent(
+                    mapOf(
+                        "type" to "gattServerRequest",
+                        "event" to "notificationSent",
+                        "deviceId" to device.address,
+                        "status" to status,
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun sendGattServerRequest(
+        event: String,
+        device: BluetoothDevice,
+        requestId: Int,
+        offset: Int,
+        characteristic: BluetoothGattCharacteristic,
+        descriptor: BluetoothGattDescriptor?,
+        value: ByteArray,
+        preparedWrite: Boolean,
+        responseNeeded: Boolean,
+    ) {
+        sendEvent(
+            mapOf(
+                "type" to "gattServerRequest",
+                "event" to event,
+                "deviceId" to device.address,
+                "serviceUuid" to characteristic.service.uuid.toString(),
+                "characteristicUuid" to characteristic.uuid.toString(),
+                "descriptorUuid" to descriptor?.uuid?.toString(),
+                "requestId" to requestId,
+                "offset" to offset,
+                "value" to value.toIntList(),
+                "preparedWrite" to preparedWrite,
+                "responseNeeded" to responseNeeded,
+            ).withoutNullValues(),
+        )
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun connectClassic(
+        call: MethodCall,
+        result: Result,
+    ) {
+        val deviceId = call.argument<String>("deviceId") ?: return result.error("invalid_arguments", "deviceId is required.", null)
+        val serviceUuid = call.argument<String>("serviceUuid") ?: return result.error("invalid_arguments", "serviceUuid is required.", null)
+        val secure = call.argument<Boolean>("secure") ?: true
+        if (!hasConnectPermission()) {
+            result.error("permission_denied", "BLUETOOTH_CONNECT permission is required.", null)
+            return
+        }
+        val device = adapter?.getRemoteDevice(deviceId) ?: return result.error("unsupported", "Bluetooth is not supported.", null)
+        sendClassicConnection(deviceId, "connecting", null)
+        thread(name = "flutter-bt-classic-connect-$deviceId") {
+            try {
+                val socket = if (secure) {
+                    device.createRfcommSocketToServiceRecord(normalizeUuid(serviceUuid))
+                } else {
+                    device.createInsecureRfcommSocketToServiceRecord(normalizeUuid(serviceUuid))
+                }
+                adapter?.cancelDiscovery()
+                socket.connect()
+                classicSockets[deviceId] = socket
+                mainHandler.post { result.success(null) }
+                sendClassicConnection(deviceId, "connected", null)
+                startClassicReadLoop(deviceId, socket)
+            } catch (error: Exception) {
+                mainHandler.post { result.error("classic_connect_failed", error.message, null) }
+                sendClassicConnection(deviceId, "disconnected", error.message)
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startClassicServer(
+        call: MethodCall,
+        result: Result,
+    ) {
+        val serviceUuid = call.argument<String>("serviceUuid") ?: return result.error("invalid_arguments", "serviceUuid is required.", null)
+        val serviceName = call.argument<String>("serviceName") ?: "FlutterBluetoothPlugin"
+        val secure = call.argument<Boolean>("secure") ?: true
+        if (!hasConnectPermission()) {
+            result.error("permission_denied", "BLUETOOTH_CONNECT permission is required.", null)
+            return
+        }
+        val adapter = adapter ?: return result.error("unsupported", "Bluetooth is not supported.", null)
+        stopClassicServerInternal()
+        classicServerSocket = if (secure) {
+            adapter.listenUsingRfcommWithServiceRecord(serviceName, normalizeUuid(serviceUuid))
+        } else {
+            adapter.listenUsingInsecureRfcommWithServiceRecord(serviceName, normalizeUuid(serviceUuid))
+        }
+        classicServerRunning = true
+        thread(name = "flutter-bt-classic-server") {
+            while (classicServerRunning) {
+                try {
+                    val socket = classicServerSocket?.accept() ?: break
+                    val deviceId = socket.remoteDevice.address
+                    classicSockets[deviceId] = socket
+                    sendClassicConnection(deviceId, "connected", null)
+                    startClassicReadLoop(deviceId, socket)
+                } catch (error: Exception) {
+                    if (classicServerRunning) {
+                        sendClassicConnection("", "disconnected", error.message)
+                    }
+                    break
+                }
+            }
+        }
+        result.success(null)
+    }
+
+    private fun stopClassicServerInternal() {
+        classicServerRunning = false
+        runCatching { classicServerSocket?.close() }
+        classicServerSocket = null
+    }
+
+    private fun disconnectClassic(
+        call: MethodCall,
+        result: Result,
+    ) {
+        val deviceId = call.argument<String>("deviceId") ?: return result.error("invalid_arguments", "deviceId is required.", null)
+        closeClassicSocket(deviceId)
+        result.success(null)
+    }
+
+    private fun writeClassic(
+        call: MethodCall,
+        result: Result,
+    ) {
+        val deviceId = call.argument<String>("deviceId") ?: return result.error("invalid_arguments", "deviceId is required.", null)
+        val value = call.argument<List<Int>>("value")?.toByteArray() ?: ByteArray(0)
+        val socket = classicSockets[deviceId] ?: return result.error("not_connected", "Classic socket is not connected.", null)
+        thread(name = "flutter-bt-classic-write-$deviceId") {
+            try {
+                socket.outputStream.write(value)
+                socket.outputStream.flush()
+                mainHandler.post { result.success(null) }
+            } catch (error: Exception) {
+                mainHandler.post { result.error("classic_write_failed", error.message, null) }
+                closeClassicSocket(deviceId)
+            }
+        }
+    }
+
+    private fun startClassicReadLoop(
+        deviceId: String,
+        socket: BluetoothSocket,
+    ) {
+        thread(name = "flutter-bt-classic-read-$deviceId") {
+            val buffer = ByteArray(1024)
+            try {
+                while (classicSockets[deviceId] == socket) {
+                    val count = socket.inputStream.read(buffer)
+                    if (count < 0) break
+                    sendEvent(mapOf("type" to "classicData", "deviceId" to deviceId, "value" to buffer.copyOf(count).toIntList()))
+                }
+            } catch (error: Exception) {
+                sendClassicConnection(deviceId, "disconnected", error.message)
+            } finally {
+                closeClassicSocket(deviceId)
+            }
+        }
+    }
+
+    private fun sendClassicConnection(
+        deviceId: String,
+        state: String,
+        error: String?,
+    ) {
+        sendEvent(
+            mapOf(
+                "type" to "classicConnection",
+                "deviceId" to deviceId,
+                "state" to state,
+                "error" to error,
+            ).withoutNullValues(),
+        )
+    }
+
+    private fun closeClassicSocket(deviceId: String) {
+        runCatching { classicSockets.remove(deviceId)?.close() }
+        sendClassicConnection(deviceId, "disconnected", null)
+    }
+
+    private fun closeAllClassicSockets() {
+        classicSockets.keys.toList().forEach { closeClassicSocket(it) }
     }
 
     private fun characteristicRequest(call: MethodCall): CharacteristicRequest? {
@@ -1261,6 +2044,11 @@ class FlutterBluetoothPlugin :
     private fun hasConnectPermission(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun hasAdvertisePermission(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            context.checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun registerReceiver() {

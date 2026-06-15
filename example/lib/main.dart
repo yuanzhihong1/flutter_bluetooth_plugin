@@ -43,6 +43,12 @@ class BluetoothTesterPage extends StatefulWidget {
 
 class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
   static const Duration _scanTimeout = Duration(seconds: 15);
+  static const String _sampleServiceUuid =
+      '0000fff0-0000-1000-8000-00805f9b34fb';
+  static const String _sampleCharacteristicUuid =
+      '0000fff1-0000-1000-8000-00805f9b34fb';
+  static const String _classicSerialPortUuid =
+      '00001101-0000-1000-8000-00805f9b34fb';
 
   final FlutterBluetoothPlugin _bluetooth = const FlutterBluetoothPlugin();
   final TextEditingController _writeController = TextEditingController(
@@ -50,6 +56,9 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
   );
   final TextEditingController _descriptorWriteController =
       TextEditingController(text: '01 00');
+  final TextEditingController _classicWriteController = TextEditingController(
+    text: 'hello classic',
+  );
   final Map<String, BluetoothScanResult> _scanResults =
       <String, BluetoothScanResult>{};
   final List<String> _logs = <String>[];
@@ -59,13 +68,16 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
 
   String _platformVersion = 'Loading...';
   bool _supported = false;
+  bool _peripheralSupported = false;
   bool _busy = false;
   bool _scanning = false;
+  bool _advertising = false;
   bool _allowDuplicates = false;
   BluetoothScanMode _scanMode = BluetoothScanMode.ble;
   BluetoothAdapterState _adapterState = BluetoothAdapterState.unknown;
   Map<String, BluetoothPermissionStatus> _permissions =
       <String, BluetoothPermissionStatus>{};
+  BluetoothAdapterInfo? _adapterInfo;
   List<BluetoothDevice> _bondedDevices = <BluetoothDevice>[];
 
   BluetoothDevice? _activeDevice;
@@ -78,6 +90,9 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
   List<int> _lastDescriptorValue = <int>[];
   int? _lastRssi;
   int? _lastMtu;
+  BluetoothPhyEvent? _lastPhy;
+  BluetoothConnectionState _classicState =
+      BluetoothConnectionState.disconnected;
 
   @override
   void initState() {
@@ -129,6 +144,41 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
         if (!mounted) return;
         _addLog('Bond ${event.deviceId}: ${event.state.name}');
       }),
+      _bluetooth.advertisingState.listen((
+        BluetoothAdvertisingStateEvent event,
+      ) {
+        if (!mounted) return;
+        setState(() => _advertising = event.isAdvertising);
+        _addLog(
+          'Advertising: ${event.isAdvertising ? 'on' : 'off'} ${event.message ?? ''}',
+        );
+      }),
+      _bluetooth.gattServerRequests.listen((BluetoothGattServerRequest event) {
+        if (!mounted) return;
+        _addLog(
+          'GATT server ${event.event}: ${event.deviceId} ${event.characteristicUuid ?? event.serviceUuid ?? ''}',
+        );
+      }),
+      _bluetooth.phyUpdates.listen((BluetoothPhyEvent event) {
+        if (!mounted) return;
+        setState(() => _lastPhy = event);
+        _addLog(
+          'PHY ${event.deviceId}: tx=${event.txPhy.name} rx=${event.rxPhy.name}',
+        );
+      }),
+      _bluetooth.classicConnectionState.listen((
+        BluetoothClassicConnectionEvent event,
+      ) {
+        if (!mounted) return;
+        setState(() => _classicState = event.state);
+        _addLog('Classic ${event.deviceId}: ${event.state.name}');
+      }),
+      _bluetooth.classicData.listen((BluetoothClassicDataEvent event) {
+        if (!mounted) return;
+        _addLog(
+          'Classic data ${event.deviceId}: ${_bytesPreview(event.value)}',
+        );
+      }),
     ];
     unawaited(_refreshAll());
   }
@@ -141,6 +191,7 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
     }
     _writeController.dispose();
     _descriptorWriteController.dispose();
+    _classicWriteController.dispose();
     super.dispose();
   }
 
@@ -166,6 +217,8 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
             _scanSection(context),
             _connectionSection(context),
             _gattSection(context),
+            _peripheralSection(context),
+            _classicSection(context),
             _logSection(context),
           ],
         ),
@@ -253,6 +306,19 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
                   label: _connectionState.name,
                   color: _connectionColor(context, _connectionState),
                 ),
+                _StatusPill(
+                  label: _peripheralSupported
+                      ? 'Peripheral OK'
+                      : 'Central only',
+                  color: _peripheralSupported
+                      ? CupertinoColors.activeGreen.resolveFrom(context)
+                      : CupertinoColors.systemGrey.resolveFrom(context),
+                ),
+                if (_advertising)
+                  _StatusPill(
+                    label: 'Advertising',
+                    color: CupertinoColors.activeBlue.resolveFrom(context),
+                  ),
                 if (_lastRssi != null)
                   _StatusPill(
                     label: 'RSSI $_lastRssi dBm',
@@ -282,6 +348,11 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
           title: const Text('Current permissions'),
           subtitle: Text(_permissionSummary()),
           leading: const Icon(CupertinoIcons.lock_shield),
+        ),
+        CupertinoListTile(
+          title: const Text('Adapter info'),
+          subtitle: Text(_adapterInfoSummary()),
+          leading: const Icon(CupertinoIcons.info_circle),
         ),
         CupertinoListTile(
           title: const Text('Request permissions'),
@@ -476,6 +547,33 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
           leading: const Icon(CupertinoIcons.resize),
           trailing: const Icon(CupertinoIcons.chevron_forward, size: 18),
           onTap: device == null ? null : () => _requestMtu(247),
+        ),
+        CupertinoListTile(
+          title: const Text('Maximum write length'),
+          subtitle: const Text(
+            'iOS reports CoreBluetooth maximum; Android uses current MTU - 3.',
+          ),
+          leading: const Icon(CupertinoIcons.arrow_left_right),
+          trailing: const Icon(CupertinoIcons.chevron_forward, size: 18),
+          onTap: device == null ? null : _getMaximumWriteLength,
+        ),
+        CupertinoListTile(
+          title: const Text('Read PHY'),
+          subtitle: Text(
+            _lastPhy == null
+                ? 'Android 8+; iOS returns unknown'
+                : 'tx=${_lastPhy!.txPhy.name}, rx=${_lastPhy!.rxPhy.name}',
+          ),
+          leading: const Icon(CupertinoIcons.dot_radiowaves_right),
+          trailing: const Icon(CupertinoIcons.chevron_forward, size: 18),
+          onTap: device == null ? null : _readPhy,
+        ),
+        CupertinoListTile(
+          title: const Text('Prefer 2M PHY'),
+          subtitle: const Text('Android 8+ only'),
+          leading: const Icon(CupertinoIcons.bolt_horizontal_circle),
+          trailing: const Icon(CupertinoIcons.chevron_forward, size: 18),
+          onTap: device == null ? null : _prefer2MPhy,
         ),
         CupertinoListTile(
           title: const Text('High connection priority'),
@@ -692,6 +790,119 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
     );
   }
 
+  Widget _peripheralSection(BuildContext context) {
+    return CupertinoListSection.insetGrouped(
+      header: const Text('Peripheral / Advertiser'),
+      footer: const Text(
+        'Creates a sample GATT server and advertises it. iOS supports local name and service UUID advertising; Android also supports manufacturer/service data.',
+      ),
+      children: <Widget>[
+        CupertinoListTile(
+          title: const Text('Peripheral support'),
+          subtitle: Text(_peripheralSupported ? 'Available' : 'Unavailable'),
+          leading: const Icon(CupertinoIcons.antenna_radiowaves_left_right),
+        ),
+        CupertinoListTile(
+          title: const Text('Install sample GATT service'),
+          subtitle: const Text(
+            'FFF0 service with FFF1 read/write/notify characteristic',
+          ),
+          leading: const Icon(CupertinoIcons.cube_box_fill),
+          trailing: const Icon(CupertinoIcons.chevron_forward, size: 18),
+          onTap: _setSampleGattServer,
+        ),
+        CupertinoListTile(
+          title: Text(_advertising ? 'Stop advertising' : 'Start advertising'),
+          subtitle: Text(
+            _advertising ? 'Advertising sample service' : _sampleServiceUuid,
+          ),
+          leading: Icon(
+            _advertising
+                ? CupertinoIcons.stop_circle
+                : CupertinoIcons.radiowaves_right,
+          ),
+          trailing: _advertising
+              ? const CupertinoActivityIndicator(radius: 10)
+              : const Icon(CupertinoIcons.chevron_forward, size: 18),
+          onTap: _advertising ? _stopAdvertising : _startAdvertising,
+        ),
+        CupertinoListTile(
+          title: const Text('Notify sample value'),
+          subtitle: const Text(
+            'Sends the text from the write field to subscribed centrals',
+          ),
+          leading: const Icon(CupertinoIcons.bell),
+          trailing: const Icon(CupertinoIcons.chevron_forward, size: 18),
+          onTap: _notifySampleCharacteristic,
+        ),
+      ],
+    );
+  }
+
+  Widget _classicSection(BuildContext context) {
+    final BluetoothDevice? device = _activeDevice;
+    return CupertinoListSection.insetGrouped(
+      header: const Text('Classic RFCOMM'),
+      footer: const Text(
+        'Android only. Uses the Serial Port Profile UUID by default.',
+      ),
+      children: <Widget>[
+        CupertinoListTile(
+          title: const Text('Classic socket state'),
+          subtitle: Text(_classicState.name),
+          leading: const Icon(CupertinoIcons.device_phone_portrait),
+        ),
+        CupertinoListTile(
+          title: const Text('Start RFCOMM server'),
+          subtitle: Text(_classicSerialPortUuid),
+          leading: const Icon(CupertinoIcons.tray_full),
+          trailing: const Icon(CupertinoIcons.chevron_forward, size: 18),
+          onTap: _startClassicServer,
+        ),
+        CupertinoListTile(
+          title: const Text('Stop RFCOMM server'),
+          leading: const Icon(CupertinoIcons.stop),
+          trailing: const Icon(CupertinoIcons.chevron_forward, size: 18),
+          onTap: _stopClassicServer,
+        ),
+        CupertinoListTile(
+          title: const Text('Connect active device via RFCOMM'),
+          subtitle: Text(
+            device == null
+                ? 'Select a scanned Classic/Dual device first'
+                : device.id,
+          ),
+          leading: const Icon(CupertinoIcons.link),
+          trailing: const Icon(CupertinoIcons.chevron_forward, size: 18),
+          onTap: device == null ? null : _connectClassic,
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
+          child: CupertinoTextField(
+            controller: _classicWriteController,
+            placeholder: 'Classic socket text or hex bytes',
+            prefix: const Padding(
+              padding: EdgeInsets.only(left: 10),
+              child: Icon(CupertinoIcons.text_bubble, size: 18),
+            ),
+          ),
+        ),
+        CupertinoListTile(
+          title: const Text('Write classic data'),
+          leading: const Icon(CupertinoIcons.paperplane),
+          trailing: const Icon(CupertinoIcons.chevron_forward, size: 18),
+          onTap: device == null ? null : _writeClassic,
+        ),
+        CupertinoListTile(
+          title: const Text('Disconnect classic socket'),
+          leading: const Icon(CupertinoIcons.xmark_circle),
+          trailing: const Icon(CupertinoIcons.chevron_forward, size: 18),
+          onTap: device == null ? null : _disconnectClassic,
+        ),
+      ],
+    );
+  }
+
   Widget _logSection(BuildContext context) {
     return CupertinoListSection.insetGrouped(
       header: const Text('Event Log'),
@@ -715,14 +926,19 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
       final String version =
           await _bluetooth.getPlatformVersion() ?? 'Unknown platform';
       final bool supported = await _bluetooth.isSupported();
+      final bool peripheralSupported = await _bluetooth.isPeripheralSupported();
       final BluetoothAdapterState state = await _bluetooth.getAdapterState();
+      final BluetoothAdapterInfo adapterInfo = await _bluetooth
+          .getAdapterInfo();
       final Map<String, BluetoothPermissionStatus> permissions =
           await _bluetooth.checkPermissions();
       if (!mounted) return;
       setState(() {
         _platformVersion = version;
         _supported = supported;
+        _peripheralSupported = peripheralSupported;
         _adapterState = state;
+        _adapterInfo = adapterInfo;
         _permissions = permissions;
       });
     }, silentSuccess: true);
@@ -903,6 +1119,36 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
     });
   }
 
+  Future<void> _getMaximumWriteLength() async {
+    final BluetoothDevice? device = _activeDevice;
+    if (device == null) return;
+    await _guard('Get maximum write length', () async {
+      final int length = await _bluetooth.getMaximumWriteLength(device.id);
+      _addLog('Maximum write length: $length');
+    });
+  }
+
+  Future<void> _readPhy() async {
+    final BluetoothDevice? device = _activeDevice;
+    if (device == null) return;
+    await _guard('Read PHY', () async {
+      final BluetoothPhyEvent phy = await _bluetooth.readPhy(device.id);
+      setState(() => _lastPhy = phy);
+    });
+  }
+
+  Future<void> _prefer2MPhy() async {
+    final BluetoothDevice? device = _activeDevice;
+    if (device == null) return;
+    await _guard('Prefer 2M PHY', () async {
+      await _bluetooth.setPreferredPhy(
+        deviceId: device.id,
+        txPhy: BluetoothPhy.le2m,
+        rxPhy: BluetoothPhy.le2m,
+      );
+    });
+  }
+
   Future<void> _requestHighPriority() async {
     final BluetoothDevice? device = _activeDevice;
     if (device == null) return;
@@ -930,6 +1176,123 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
     await _guard('Remove bond', () async {
       final bool removed = await _bluetooth.removeBond(device.id);
       _addLog('Remove bond result: $removed');
+    });
+  }
+
+  Future<void> _setSampleGattServer() async {
+    await _guard('Install sample GATT service', () async {
+      await _bluetooth.setGattServerServices(const <BluetoothGattService>[
+        BluetoothGattService(
+          uuid: _sampleServiceUuid,
+          characteristics: <BluetoothGattCharacteristic>[
+            BluetoothGattCharacteristic(
+              uuid: _sampleCharacteristicUuid,
+              serviceUuid: _sampleServiceUuid,
+              properties: <String>[
+                'read',
+                'write',
+                'writeWithoutResponse',
+                'notify',
+              ],
+              permissions: <String>['read', 'write'],
+              value: <int>[72, 101, 108, 108, 111],
+              descriptors: <BluetoothGattDescriptor>[
+                BluetoothGattDescriptor(
+                  uuid: '00002901-0000-1000-8000-00805f9b34fb',
+                  characteristicUuid: _sampleCharacteristicUuid,
+                  value: <int>[83, 97, 109, 112, 108, 101],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ]);
+    });
+  }
+
+  Future<void> _startAdvertising() async {
+    await _guard('Start advertising', () async {
+      await _bluetooth.startAdvertising(
+        advertisementData: const BluetoothAdvertisementData(
+          localName: 'Flutter BT',
+          serviceUuids: <String>[_sampleServiceUuid],
+          includeDeviceName: true,
+        ),
+        settings: const BluetoothAdvertisingSettings(
+          mode: BluetoothAdvertisingMode.lowLatency,
+          txPowerLevel: BluetoothTxPowerLevel.high,
+          connectable: true,
+        ),
+      );
+      setState(() => _advertising = true);
+    });
+  }
+
+  Future<void> _stopAdvertising() async {
+    await _guard('Stop advertising', () async {
+      await _bluetooth.stopAdvertising();
+      setState(() => _advertising = false);
+    });
+  }
+
+  Future<void> _notifySampleCharacteristic() async {
+    await _guard('Notify sample characteristic', () async {
+      final List<int> value = _parseBytes(_writeController.text);
+      await _bluetooth.updateLocalCharacteristicValue(
+        serviceUuid: _sampleServiceUuid,
+        characteristicUuid: _sampleCharacteristicUuid,
+        value: value,
+      );
+      final bool sent = await _bluetooth.notifyGattServerCharacteristic(
+        serviceUuid: _sampleServiceUuid,
+        characteristicUuid: _sampleCharacteristicUuid,
+        value: value,
+      );
+      _addLog('Local notification sent: $sent');
+    });
+  }
+
+  Future<void> _connectClassic() async {
+    final BluetoothDevice? device = _activeDevice;
+    if (device == null) return;
+    await _guard('Connect classic', () async {
+      await _bluetooth.connectClassic(
+        deviceId: device.id,
+        serviceUuid: _classicSerialPortUuid,
+        timeout: const Duration(seconds: 15),
+      );
+    });
+  }
+
+  Future<void> _startClassicServer() async {
+    await _guard('Start classic server', () async {
+      await _bluetooth.startClassicServer(
+        serviceUuid: _classicSerialPortUuid,
+        serviceName: 'FlutterBluetoothPlugin',
+      );
+    });
+  }
+
+  Future<void> _stopClassicServer() async {
+    await _guard('Stop classic server', _bluetooth.stopClassicServer);
+  }
+
+  Future<void> _writeClassic() async {
+    final BluetoothDevice? device = _activeDevice;
+    if (device == null) return;
+    await _guard('Write classic data', () async {
+      await _bluetooth.writeClassic(
+        device.id,
+        _parseBytes(_classicWriteController.text),
+      );
+    });
+  }
+
+  Future<void> _disconnectClassic() async {
+    final BluetoothDevice? device = _activeDevice;
+    if (device == null) return;
+    await _guard('Disconnect classic', () async {
+      await _bluetooth.disconnectClassic(device.id);
     });
   }
 
@@ -1034,6 +1397,23 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
               '${entry.key}: ${entry.value.name}',
         )
         .join('\n');
+  }
+
+  String _adapterInfoSummary() {
+    final BluetoothAdapterInfo? info = _adapterInfo;
+    if (info == null) {
+      return 'Unknown';
+    }
+    return <String>[
+      'state: ${info.state.name}',
+      if (info.name != null) 'name: ${info.name}',
+      if (info.address != null) 'address: ${info.address}',
+      'BLE: ${info.isBleSupported}',
+      'advertising: ${info.isMultipleAdvertisementSupported}',
+      '2M PHY: ${info.isLe2MPhySupported}',
+      'coded PHY: ${info.isLeCodedPhySupported}',
+      'discovering: ${info.isDiscovering}',
+    ].join('\n');
   }
 
   List<int> _parseBytes(String text) {

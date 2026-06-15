@@ -2,11 +2,13 @@ import CoreBluetooth
 import Flutter
 import UIKit
 
-public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CBCentralManagerDelegate, CBPeripheralDelegate {
+public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CBCentralManagerDelegate, CBPeripheralDelegate, CBPeripheralManagerDelegate {
   private var centralManager: CBCentralManager?
+  private var peripheralManager: CBPeripheralManager?
   private var eventSink: FlutterEventSink?
   private var scanTimer: Timer?
   private var peripherals: [String: CBPeripheral] = [:]
+  private var isAdvertising = false
 
   private var pendingPermissionResults: [FlutterResult] = []
   private var pendingConnectResults: [String: FlutterResult] = [:]
@@ -18,6 +20,9 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
   private var pendingDescriptorWrites: [String: FlutterResult] = [:]
   private var pendingNotificationResults: [String: FlutterResult] = [:]
   private var pendingRssiResults: [String: FlutterResult] = [:]
+  private var pendingAdvertisingResult: FlutterResult?
+  private var localCharacteristics: [String: CBMutableCharacteristic] = [:]
+  private var localCharacteristicValues: [String: Data] = [:]
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let methodChannel = FlutterMethodChannel(name: "flutter_bluetooth_plugin", binaryMessenger: registrar.messenger())
@@ -36,6 +41,12 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
       result(manager.state != .unsupported)
     case "getAdapterState":
       result(adapterStateString(ensureCentralManager().state))
+    case "getAdapterInfo":
+      result(adapterInfoMap())
+    case "isScanning":
+      result(centralManager?.isScanning == true)
+    case "setAdapterName":
+      result(false)
     case "checkPermissions":
       result(permissionMap())
     case "requestPermissions":
@@ -52,6 +63,10 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
       result([])
     case "getConnectedDevices":
       getConnectedDevices(arguments: call.arguments, result: result)
+    case "getDevice":
+      getDevice(arguments: call.arguments, result: result)
+    case "getDevices":
+      getDevices(arguments: call.arguments, result: result)
     case "connect":
       connect(arguments: call.arguments, result: result)
     case "disconnect":
@@ -74,10 +89,32 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
       readRssi(arguments: call.arguments, result: result)
     case "requestMtu":
       requestMtu(arguments: call.arguments, result: result)
+    case "getMaximumWriteLength":
+      getMaximumWriteLength(arguments: call.arguments, result: result)
+    case "setPreferredPhy":
+      result(FlutterMethodNotImplemented)
+    case "readPhy":
+      result(["deviceId": (call.arguments as? [String: Any])?["deviceId"] as? String ?? "", "txPhy": "unknown", "rxPhy": "unknown"])
     case "requestConnectionPriority":
       result(false)
     case "createBond", "removeBond":
       result(false)
+    case "isPeripheralSupported":
+      result(true)
+    case "startAdvertising":
+      startAdvertising(arguments: call.arguments, result: result)
+    case "stopAdvertising":
+      stopAdvertising(result: result)
+    case "setGattServerServices":
+      setGattServerServices(arguments: call.arguments, result: result)
+    case "clearGattServerServices":
+      clearGattServerServices(result: result)
+    case "updateLocalCharacteristicValue":
+      updateLocalCharacteristicValue(arguments: call.arguments, result: result)
+    case "notifyGattServerCharacteristic":
+      notifyGattServerCharacteristic(arguments: call.arguments, result: result)
+    case "connectClassic", "startClassicServer", "stopClassicServer", "disconnectClassic", "writeClassic":
+      result(FlutterMethodNotImplemented)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -101,6 +138,30 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
       centralManager = CBCentralManager(delegate: self, queue: DispatchQueue.main)
     }
     return centralManager!
+  }
+
+  private func ensurePeripheralManager() -> CBPeripheralManager {
+    if peripheralManager == nil {
+      peripheralManager = CBPeripheralManager(delegate: self, queue: DispatchQueue.main)
+    }
+    return peripheralManager!
+  }
+
+  private func adapterInfoMap() -> [String: Any] {
+    let manager = ensureCentralManager()
+    return [
+      "isSupported": manager.state != .unsupported,
+      "state": adapterStateString(manager.state),
+      "isBleSupported": manager.state != .unsupported,
+      "isMultipleAdvertisementSupported": true,
+      "isOffloadedFilteringSupported": false,
+      "isOffloadedScanBatchingSupported": false,
+      "isLe2MPhySupported": false,
+      "isLeCodedPhySupported": false,
+      "isLeExtendedAdvertisingSupported": false,
+      "isLePeriodicAdvertisingSupported": false,
+      "isDiscovering": manager.isScanning
+    ]
   }
 
   private func handleRequestPermissions(result: @escaping FlutterResult) {
@@ -173,6 +234,22 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     }
 
     result(connected.map { deviceMap($0) })
+  }
+
+  private func getDevice(arguments: Any?, result: @escaping FlutterResult) {
+    let args = arguments as? [String: Any] ?? [:]
+    guard let deviceId = args["deviceId"] as? String, let peripheral = peripheral(for: deviceId) else {
+      result(nil)
+      return
+    }
+    result(deviceMap(peripheral))
+  }
+
+  private func getDevices(arguments: Any?, result: @escaping FlutterResult) {
+    let args = arguments as? [String: Any] ?? [:]
+    let ids = args["deviceIds"] as? [String] ?? []
+    let devices = ids.compactMap { peripheral(for: $0) }.map { deviceMap($0) }
+    result(devices)
   }
 
   private func connect(arguments: Any?, result: @escaping FlutterResult) {
@@ -350,6 +427,196 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     let mtu = peripheral.maximumWriteValueLength(for: .withoutResponse)
     sendEvent(["type": "mtu", "deviceId": deviceId, "mtu": mtu])
     result(mtu)
+  }
+
+  private func getMaximumWriteLength(arguments: Any?, result: @escaping FlutterResult) {
+    let args = arguments as? [String: Any] ?? [:]
+    guard let deviceId = args["deviceId"] as? String, let peripheral = peripheral(for: deviceId) else {
+      result(FlutterError(code: "device_not_found", message: "Device was not found.", details: nil))
+      return
+    }
+    let withoutResponse = args["withoutResponse"] as? Bool ?? true
+    let type: CBCharacteristicWriteType = withoutResponse ? .withoutResponse : .withResponse
+    result(peripheral.maximumWriteValueLength(for: type))
+  }
+
+  private func startAdvertising(arguments: Any?, result: @escaping FlutterResult) {
+    let manager = ensurePeripheralManager()
+    guard manager.state == .poweredOn else {
+      result(FlutterError(code: "bluetooth_unavailable", message: "Bluetooth is not powered on.", details: adapterStateString(manager.state)))
+      return
+    }
+    let args = arguments as? [String: Any] ?? [:]
+    let data = args["advertisementData"] as? [String: Any] ?? [:]
+    var advertisement: [String: Any] = [:]
+    if let localName = data["localName"] as? String {
+      advertisement[CBAdvertisementDataLocalNameKey] = localName
+    }
+    let serviceUuids = (data["serviceUuids"] as? [String] ?? []).map { CBUUID(string: $0) }
+    if !serviceUuids.isEmpty {
+      advertisement[CBAdvertisementDataServiceUUIDsKey] = serviceUuids
+    }
+    pendingAdvertisingResult = result
+    manager.startAdvertising(advertisement)
+  }
+
+  private func stopAdvertising(result: @escaping FlutterResult) {
+    peripheralManager?.stopAdvertising()
+    isAdvertising = false
+    sendEvent(["type": "advertisingState", "isAdvertising": false])
+    result(nil)
+  }
+
+  private func setGattServerServices(arguments: Any?, result: @escaping FlutterResult) {
+    let manager = ensurePeripheralManager()
+    manager.removeAllServices()
+    localCharacteristics.removeAll()
+    localCharacteristicValues.removeAll()
+    let args = arguments as? [String: Any] ?? [:]
+    let services = args["services"] as? [[String: Any]] ?? []
+    for serviceMap in services {
+      manager.add(localService(serviceMap))
+    }
+    result(nil)
+  }
+
+  private func clearGattServerServices(result: @escaping FlutterResult) {
+    peripheralManager?.removeAllServices()
+    localCharacteristics.removeAll()
+    localCharacteristicValues.removeAll()
+    result(nil)
+  }
+
+  private func updateLocalCharacteristicValue(arguments: Any?, result: @escaping FlutterResult) {
+    let args = arguments as? [String: Any] ?? [:]
+    guard let serviceUuid = args["serviceUuid"] as? String,
+      let characteristicUuid = args["characteristicUuid"] as? String
+    else {
+      result(FlutterError(code: "invalid_arguments", message: "serviceUuid and characteristicUuid are required.", details: nil))
+      return
+    }
+    let data = Data(byteArray(args["value"]))
+    let key = characteristicKey("local", serviceUuid, characteristicUuid)
+    localCharacteristicValues[key] = data
+    localCharacteristics[key]?.value = data
+    result(nil)
+  }
+
+  private func notifyGattServerCharacteristic(arguments: Any?, result: @escaping FlutterResult) {
+    let args = arguments as? [String: Any] ?? [:]
+    guard let serviceUuid = args["serviceUuid"] as? String,
+      let characteristicUuid = args["characteristicUuid"] as? String
+    else {
+      result(FlutterError(code: "invalid_arguments", message: "serviceUuid and characteristicUuid are required.", details: nil))
+      return
+    }
+    let key = characteristicKey("local", serviceUuid, characteristicUuid)
+    guard let characteristic = localCharacteristics[key] else {
+      result(FlutterError(code: "characteristic_not_found", message: "Local characteristic was not found.", details: nil))
+      return
+    }
+    let data = Data(byteArray(args["value"]))
+    localCharacteristicValues[key] = data
+    characteristic.value = data
+    result(peripheralManager?.updateValue(data, for: characteristic, onSubscribedCentrals: nil) == true)
+  }
+
+  public func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
+    sendEvent(["type": "advertisingState", "isAdvertising": isAdvertising, "message": adapterStateString(peripheral.state)])
+    flushPermissionResults()
+  }
+
+  public func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
+    if let error = error {
+      isAdvertising = false
+      pendingAdvertisingResult?(FlutterError(code: "advertising_failed", message: error.localizedDescription, details: nil))
+      sendEvent(["type": "advertisingState", "isAdvertising": false, "message": error.localizedDescription])
+    } else {
+      isAdvertising = true
+      pendingAdvertisingResult?(nil)
+      sendEvent(["type": "advertisingState", "isAdvertising": true])
+    }
+    pendingAdvertisingResult = nil
+  }
+
+  public func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?) {
+    sendEvent([
+      "type": "gattServerRequest",
+      "event": "serviceAdded",
+      "deviceId": "",
+      "serviceUuid": service.uuid.uuidString,
+      "status": error == nil ? 0 : 1,
+      "message": error?.localizedDescription
+    ])
+  }
+
+  public func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
+    let serviceUuid = request.characteristic.service?.uuid.uuidString ?? ""
+    let characteristicUuid = request.characteristic.uuid.uuidString
+    let key = characteristicKey("local", serviceUuid, characteristicUuid)
+    let value = localCharacteristicValues[key] ?? Data()
+    if request.offset > value.count {
+      peripheral.respond(to: request, withResult: .invalidOffset)
+      return
+    }
+    request.value = value.subdata(in: request.offset..<value.count)
+    peripheral.respond(to: request, withResult: .success)
+    sendEvent([
+      "type": "gattServerRequest",
+      "event": "characteristicRead",
+      "deviceId": centralIdentifier(request.central),
+      "serviceUuid": serviceUuid,
+      "characteristicUuid": characteristicUuid,
+      "offset": request.offset,
+      "value": byteList(request.value),
+      "responseNeeded": true
+    ])
+  }
+
+  public func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
+    for request in requests {
+      let serviceUuid = request.characteristic.service?.uuid.uuidString ?? ""
+      let characteristicUuid = request.characteristic.uuid.uuidString
+      let key = characteristicKey("local", serviceUuid, characteristicUuid)
+      let value = request.value ?? Data()
+      localCharacteristicValues[key] = value
+      if let characteristic = localCharacteristics[key] {
+        characteristic.value = value
+      }
+      sendEvent([
+        "type": "gattServerRequest",
+        "event": "characteristicWrite",
+        "deviceId": centralIdentifier(request.central),
+        "serviceUuid": serviceUuid,
+        "characteristicUuid": characteristicUuid,
+        "offset": request.offset,
+        "value": byteList(value),
+        "responseNeeded": true
+      ])
+    }
+    if let first = requests.first {
+      peripheral.respond(to: first, withResult: .success)
+    }
+  }
+
+  public func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
+    sendEvent([
+      "type": "gattServerRequest",
+      "event": "subscribed",
+      "deviceId": centralIdentifier(central),
+      "serviceUuid": characteristic.service?.uuid.uuidString ?? "",
+      "characteristicUuid": characteristic.uuid.uuidString
+    ])
+  }
+
+  public func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
+    sendEvent([
+      "type": "gattServerRequest",
+      "event": "unsubscribed",
+      "deviceId": centralIdentifier(central),
+      "serviceUuid": characteristic.service?.uuid.uuidString ?? "",
+      "characteristicUuid": characteristic.uuid.uuidString
+    ])
   }
 
   public func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -695,6 +962,65 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
 
   private func permissionMap() -> [String: String] {
     return ["bluetooth": bluetoothPermissionStatus()]
+  }
+
+  private func localService(_ map: [String: Any]) -> CBMutableService {
+    let serviceUuid = CBUUID(string: map["uuid"] as? String ?? "")
+    let service = CBMutableService(type: serviceUuid, primary: map["isPrimary"] as? Bool ?? true)
+    let characteristics = map["characteristics"] as? [[String: Any]] ?? []
+    service.characteristics = characteristics.map { localCharacteristic(serviceUuid: serviceUuid.uuidString, map: $0) }
+    return service
+  }
+
+  private func localCharacteristic(serviceUuid: String, map: [String: Any]) -> CBMutableCharacteristic {
+    let characteristicUuid = CBUUID(string: map["uuid"] as? String ?? "")
+    let properties = mutableCharacteristicProperties(map["properties"] as? [String] ?? [])
+    let permissions = attributePermissions(map["permissions"] as? [String] ?? [])
+    let descriptors = (map["descriptors"] as? [[String: Any]] ?? []).map { descriptor -> CBMutableDescriptor in
+      let uuid = CBUUID(string: descriptor["uuid"] as? String ?? "")
+      let value = Data(byteArray(descriptor["value"]))
+      return CBMutableDescriptor(type: uuid, value: value)
+    }
+    let value = Data(byteArray(map["value"]))
+    let characteristic = CBMutableCharacteristic(
+      type: characteristicUuid,
+      properties: properties,
+      value: properties.contains(.read) && !properties.contains(.write) ? value : nil,
+      permissions: permissions
+    )
+    characteristic.descriptors = descriptors
+    let key = characteristicKey("local", serviceUuid, characteristicUuid.uuidString)
+    localCharacteristics[key] = characteristic
+    localCharacteristicValues[key] = value
+    return characteristic
+  }
+
+  private func mutableCharacteristicProperties(_ values: [String]) -> CBCharacteristicProperties {
+    var properties: CBCharacteristicProperties = []
+    if values.contains("broadcast") { properties.insert(.broadcast) }
+    if values.contains("read") { properties.insert(.read) }
+    if values.contains("writeWithoutResponse") { properties.insert(.writeWithoutResponse) }
+    if values.contains("write") { properties.insert(.write) }
+    if values.contains("notify") { properties.insert(.notify) }
+    if values.contains("indicate") { properties.insert(.indicate) }
+    if values.contains("authenticatedSignedWrites") { properties.insert(.authenticatedSignedWrites) }
+    if values.contains("extendedProperties") { properties.insert(.extendedProperties) }
+    if values.contains("notifyEncryptionRequired") { properties.insert(.notifyEncryptionRequired) }
+    if values.contains("indicateEncryptionRequired") { properties.insert(.indicateEncryptionRequired) }
+    return properties
+  }
+
+  private func attributePermissions(_ values: [String]) -> CBAttributePermissions {
+    var permissions: CBAttributePermissions = []
+    if values.isEmpty || values.contains("read") { permissions.insert(.readable) }
+    if values.isEmpty || values.contains("write") { permissions.insert(.writeable) }
+    if values.contains("readEncrypted") || values.contains("readEncryptionRequired") { permissions.insert(.readEncryptionRequired) }
+    if values.contains("writeEncrypted") || values.contains("writeEncryptionRequired") { permissions.insert(.writeEncryptionRequired) }
+    return permissions
+  }
+
+  private func centralIdentifier(_ central: CBCentral) -> String {
+    return central.identifier.uuidString
   }
 
   private func deviceMap(_ peripheral: CBPeripheral) -> [String: Any] {

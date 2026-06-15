@@ -46,6 +46,28 @@ class MethodChannelFlutterBluetoothPlugin
   }
 
   @override
+  Future<BluetoothAdapterInfo> getAdapterInfo() async {
+    final response = await methodChannel.invokeMapMethod<String, dynamic>(
+      'getAdapterInfo',
+    );
+    return BluetoothAdapterInfo.fromMap(response ?? <String, dynamic>{});
+  }
+
+  @override
+  Future<bool> isScanning() async {
+    return await methodChannel.invokeMethod<bool>('isScanning') ?? false;
+  }
+
+  @override
+  Future<bool> setAdapterName(String name) async {
+    return await methodChannel.invokeMethod<bool>(
+          'setAdapterName',
+          <String, dynamic>{'name': name},
+        ) ??
+        false;
+  }
+
+  @override
   Stream<BluetoothAdapterState> get adapterState {
     return _eventStream
         .where((event) => event['type'] == 'adapterState')
@@ -123,6 +145,27 @@ class MethodChannelFlutterBluetoothPlugin
     final response = await methodChannel.invokeListMethod<dynamic>(
       'getConnectedDevices',
       <String, dynamic>{'serviceUuids': serviceUuids},
+    );
+    return _deviceListFromPlatform(response);
+  }
+
+  @override
+  Future<BluetoothDevice?> getDevice(String deviceId) async {
+    final response = await methodChannel.invokeMapMethod<String, dynamic>(
+      'getDevice',
+      <String, dynamic>{'deviceId': deviceId},
+    );
+    if (response == null || response.isEmpty) {
+      return null;
+    }
+    return BluetoothDevice.fromMap(response);
+  }
+
+  @override
+  Future<List<BluetoothDevice>> getDevices(List<String> deviceIds) async {
+    final response = await methodChannel.invokeListMethod<dynamic>(
+      'getDevices',
+      <String, dynamic>{'deviceIds': deviceIds},
     );
     return _deviceListFromPlatform(response);
   }
@@ -296,10 +339,56 @@ class MethodChannelFlutterBluetoothPlugin
   }
 
   @override
+  Future<int> getMaximumWriteLength(
+    String deviceId, {
+    bool withoutResponse = true,
+  }) async {
+    return await methodChannel.invokeMethod<int>(
+          'getMaximumWriteLength',
+          <String, dynamic>{
+            'deviceId': deviceId,
+            'withoutResponse': withoutResponse,
+          },
+        ) ??
+        0;
+  }
+
+  @override
   Stream<BluetoothMtuEvent> get mtuUpdates {
     return _eventStream
         .where((event) => event['type'] == 'mtu')
         .map(BluetoothMtuEvent.fromMap);
+  }
+
+  @override
+  Future<void> setPreferredPhy({
+    required String deviceId,
+    required BluetoothPhy txPhy,
+    required BluetoothPhy rxPhy,
+    int phyOptions = 0,
+  }) async {
+    await methodChannel.invokeMethod<void>('setPreferredPhy', <String, dynamic>{
+      'deviceId': deviceId,
+      'txPhy': txPhy.name,
+      'rxPhy': rxPhy.name,
+      'phyOptions': phyOptions,
+    });
+  }
+
+  @override
+  Future<BluetoothPhyEvent> readPhy(String deviceId) async {
+    final response = await methodChannel.invokeMapMethod<String, dynamic>(
+      'readPhy',
+      <String, dynamic>{'deviceId': deviceId},
+    );
+    return BluetoothPhyEvent.fromMap(response ?? <String, dynamic>{});
+  }
+
+  @override
+  Stream<BluetoothPhyEvent> get phyUpdates {
+    return _eventStream
+        .where((event) => event['type'] == 'phy')
+        .map(BluetoothPhyEvent.fromMap);
   }
 
   @override
@@ -337,6 +426,165 @@ class MethodChannelFlutterBluetoothPlugin
     return _eventStream
         .where((event) => event['type'] == 'bondState')
         .map(BluetoothBondStateEvent.fromMap);
+  }
+
+  @override
+  Future<bool> isPeripheralSupported() async {
+    return await methodChannel.invokeMethod<bool>('isPeripheralSupported') ??
+        false;
+  }
+
+  @override
+  Future<void> startAdvertising({
+    BluetoothAdvertisementData advertisementData =
+        const BluetoothAdvertisementData(),
+    BluetoothAdvertisementData? scanResponse,
+    BluetoothAdvertisingSettings settings =
+        const BluetoothAdvertisingSettings(),
+  }) async {
+    await methodChannel
+        .invokeMethod<void>('startAdvertising', <String, dynamic>{
+          'advertisementData': advertisementData.toMap(),
+          'scanResponse': scanResponse?.toMap(),
+          'settings': settings.toMap(),
+        });
+  }
+
+  @override
+  Future<void> stopAdvertising() async {
+    await methodChannel.invokeMethod<void>('stopAdvertising');
+  }
+
+  @override
+  Stream<BluetoothAdvertisingStateEvent> get advertisingState {
+    return _eventStream
+        .where((event) => event['type'] == 'advertisingState')
+        .map(BluetoothAdvertisingStateEvent.fromMap);
+  }
+
+  @override
+  Future<void> setGattServerServices(
+    List<BluetoothGattService> services,
+  ) async {
+    await methodChannel.invokeMethod<void>(
+      'setGattServerServices',
+      <String, dynamic>{
+        'services': services.map((service) => service.toMap()).toList(),
+      },
+    );
+  }
+
+  @override
+  Future<void> clearGattServerServices() async {
+    await methodChannel.invokeMethod<void>('clearGattServerServices');
+  }
+
+  @override
+  Future<void> updateLocalCharacteristicValue({
+    required String serviceUuid,
+    required String characteristicUuid,
+    required List<int> value,
+  }) async {
+    await methodChannel
+        .invokeMethod<void>('updateLocalCharacteristicValue', <String, dynamic>{
+          'serviceUuid': serviceUuid,
+          'characteristicUuid': characteristicUuid,
+          'value': value,
+        });
+  }
+
+  @override
+  Future<bool> notifyGattServerCharacteristic({
+    String? deviceId,
+    required String serviceUuid,
+    required String characteristicUuid,
+    required List<int> value,
+    bool confirm = false,
+  }) async {
+    return await methodChannel.invokeMethod<bool>(
+          'notifyGattServerCharacteristic',
+          <String, dynamic>{
+            'deviceId': deviceId,
+            'serviceUuid': serviceUuid,
+            'characteristicUuid': characteristicUuid,
+            'value': value,
+            'confirm': confirm,
+          },
+        ) ??
+        false;
+  }
+
+  @override
+  Stream<BluetoothGattServerRequest> get gattServerRequests {
+    return _eventStream
+        .where((event) => event['type'] == 'gattServerRequest')
+        .map(BluetoothGattServerRequest.fromMap);
+  }
+
+  @override
+  Future<void> connectClassic({
+    required String deviceId,
+    required String serviceUuid,
+    bool secure = true,
+    Duration? timeout,
+  }) async {
+    await methodChannel.invokeMethod<void>('connectClassic', <String, dynamic>{
+      'deviceId': deviceId,
+      'serviceUuid': serviceUuid,
+      'secure': secure,
+      'timeoutMs': timeout?.inMilliseconds,
+    });
+  }
+
+  @override
+  Future<void> startClassicServer({
+    required String serviceUuid,
+    String serviceName = 'FlutterBluetoothPlugin',
+    bool secure = true,
+  }) async {
+    await methodChannel.invokeMethod<void>(
+      'startClassicServer',
+      <String, dynamic>{
+        'serviceUuid': serviceUuid,
+        'serviceName': serviceName,
+        'secure': secure,
+      },
+    );
+  }
+
+  @override
+  Future<void> stopClassicServer() async {
+    await methodChannel.invokeMethod<void>('stopClassicServer');
+  }
+
+  @override
+  Future<void> disconnectClassic(String deviceId) async {
+    await methodChannel.invokeMethod<void>(
+      'disconnectClassic',
+      <String, dynamic>{'deviceId': deviceId},
+    );
+  }
+
+  @override
+  Future<void> writeClassic(String deviceId, List<int> value) async {
+    await methodChannel.invokeMethod<void>('writeClassic', <String, dynamic>{
+      'deviceId': deviceId,
+      'value': value,
+    });
+  }
+
+  @override
+  Stream<BluetoothClassicConnectionEvent> get classicConnectionState {
+    return _eventStream
+        .where((event) => event['type'] == 'classicConnection')
+        .map(BluetoothClassicConnectionEvent.fromMap);
+  }
+
+  @override
+  Stream<BluetoothClassicDataEvent> get classicData {
+    return _eventStream
+        .where((event) => event['type'] == 'classicData')
+        .map(BluetoothClassicDataEvent.fromMap);
   }
 
   Map<String, BluetoothPermissionStatus> _permissionMapFromPlatform(

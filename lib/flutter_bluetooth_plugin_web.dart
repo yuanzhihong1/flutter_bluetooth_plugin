@@ -35,6 +35,20 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
   }
 
   @override
+  Future<BluetoothAdapterInfo> getAdapterInfo() async {
+    return const BluetoothAdapterInfo(
+      isSupported: false,
+      state: BluetoothAdapterState.unsupported,
+    );
+  }
+
+  @override
+  Future<bool> isScanning() async => false;
+
+  @override
+  Future<bool> setAdapterName(String name) async => false;
+
+  @override
   Stream<BluetoothAdapterState> get adapterState {
     return Stream<BluetoothAdapterState>.value(
       BluetoothAdapterState.unsupported,
@@ -84,6 +98,14 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
   Future<List<BluetoothDevice>> getConnectedDevices({
     List<String> serviceUuids = const <String>[],
   }) async {
+    return const <BluetoothDevice>[];
+  }
+
+  @override
+  Future<BluetoothDevice?> getDevice(String deviceId) async => null;
+
+  @override
+  Future<List<BluetoothDevice>> getDevices(List<String> deviceIds) async {
     return const <BluetoothDevice>[];
   }
 
@@ -200,8 +222,40 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
   Future<int> requestMtu(String deviceId, int mtu) async => 0;
 
   @override
+  Future<int> getMaximumWriteLength(
+    String deviceId, {
+    bool withoutResponse = true,
+  }) async {
+    return 0;
+  }
+
+  @override
   Stream<BluetoothMtuEvent> get mtuUpdates =>
       const Stream<BluetoothMtuEvent>.empty();
+
+  @override
+  Future<void> setPreferredPhy({
+    required String deviceId,
+    required BluetoothPhy txPhy,
+    required BluetoothPhy rxPhy,
+    int phyOptions = 0,
+  }) {
+    throw UnsupportedError('LE PHY APIs are not implemented for web.');
+  }
+
+  @override
+  Future<BluetoothPhyEvent> readPhy(String deviceId) async {
+    return BluetoothPhyEvent(
+      deviceId: deviceId,
+      txPhy: BluetoothPhy.unknown,
+      rxPhy: BluetoothPhy.unknown,
+    );
+  }
+
+  @override
+  Stream<BluetoothPhyEvent> get phyUpdates {
+    return const Stream<BluetoothPhyEvent>.empty();
+  }
 
   @override
   Future<bool> requestConnectionPriority(
@@ -220,5 +274,100 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
   @override
   Stream<BluetoothBondStateEvent> get bondState {
     return const Stream<BluetoothBondStateEvent>.empty();
+  }
+
+  @override
+  Future<bool> isPeripheralSupported() async => false;
+
+  @override
+  Future<void> startAdvertising({
+    BluetoothAdvertisementData advertisementData =
+        const BluetoothAdvertisementData(),
+    BluetoothAdvertisementData? scanResponse,
+    BluetoothAdvertisingSettings settings =
+        const BluetoothAdvertisingSettings(),
+  }) {
+    throw UnsupportedError('BLE advertising is not implemented for web.');
+  }
+
+  @override
+  Future<void> stopAdvertising() async {}
+
+  @override
+  Stream<BluetoothAdvertisingStateEvent> get advertisingState {
+    return const Stream<BluetoothAdvertisingStateEvent>.empty();
+  }
+
+  @override
+  Future<void> setGattServerServices(List<BluetoothGattService> services) {
+    throw UnsupportedError('GATT server APIs are not implemented for web.');
+  }
+
+  @override
+  Future<void> clearGattServerServices() async {}
+
+  @override
+  Future<void> updateLocalCharacteristicValue({
+    required String serviceUuid,
+    required String characteristicUuid,
+    required List<int> value,
+  }) {
+    throw UnsupportedError('GATT server APIs are not implemented for web.');
+  }
+
+  @override
+  Future<bool> notifyGattServerCharacteristic({
+    String? deviceId,
+    required String serviceUuid,
+    required String characteristicUuid,
+    required List<int> value,
+    bool confirm = false,
+  }) async {
+    return false;
+  }
+
+  @override
+  Stream<BluetoothGattServerRequest> get gattServerRequests {
+    return const Stream<BluetoothGattServerRequest>.empty();
+  }
+
+  @override
+  Future<void> connectClassic({
+    required String deviceId,
+    required String serviceUuid,
+    bool secure = true,
+    Duration? timeout,
+  }) {
+    throw UnsupportedError('Classic Bluetooth is not implemented for web.');
+  }
+
+  @override
+  Future<void> startClassicServer({
+    required String serviceUuid,
+    String serviceName = 'FlutterBluetoothPlugin',
+    bool secure = true,
+  }) {
+    throw UnsupportedError('Classic Bluetooth is not implemented for web.');
+  }
+
+  @override
+  Future<void> stopClassicServer() async {}
+
+  @override
+  Future<void> disconnectClassic(String deviceId) async {}
+
+  @override
+  Future<void> writeClassic(String deviceId, List<int> value) {
+    throw UnsupportedError('Classic Bluetooth is not implemented for web.');
+  }
+
+  @override
+  Stream<BluetoothClassicConnectionEvent> get classicConnectionState {
+    return const Stream<BluetoothClassicConnectionEvent>.empty();
+  }
+
+  @override
+  Stream<BluetoothClassicDataEvent> get classicData {
+    return const Stream<BluetoothClassicDataEvent>.empty();
   }
 }

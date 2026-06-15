@@ -21,6 +21,18 @@ class FlutterBluetoothPlugin {
     return _platform.getAdapterState();
   }
 
+  Future<BluetoothAdapterInfo> getAdapterInfo() {
+    return _platform.getAdapterInfo();
+  }
+
+  Future<bool> isScanning() {
+    return _platform.isScanning();
+  }
+
+  Future<bool> setAdapterName(String name) {
+    return _platform.setAdapterName(name);
+  }
+
   Stream<BluetoothAdapterState> get adapterState => _platform.adapterState;
 
   Future<Map<String, BluetoothPermissionStatus>> checkPermissions() {
@@ -67,6 +79,14 @@ class FlutterBluetoothPlugin {
     List<String> serviceUuids = const <String>[],
   }) {
     return _platform.getConnectedDevices(serviceUuids: serviceUuids);
+  }
+
+  Future<BluetoothDevice?> getDevice(String deviceId) {
+    return _platform.getDevice(deviceId);
+  }
+
+  Future<List<BluetoothDevice>> getDevices(List<String> deviceIds) {
+    return _platform.getDevices(deviceIds);
   }
 
   Future<void> connect(
@@ -185,7 +205,37 @@ class FlutterBluetoothPlugin {
     return _platform.requestMtu(deviceId, mtu);
   }
 
+  Future<int> getMaximumWriteLength(
+    String deviceId, {
+    bool withoutResponse = true,
+  }) {
+    return _platform.getMaximumWriteLength(
+      deviceId,
+      withoutResponse: withoutResponse,
+    );
+  }
+
   Stream<BluetoothMtuEvent> get mtuUpdates => _platform.mtuUpdates;
+
+  Future<void> setPreferredPhy({
+    required String deviceId,
+    required BluetoothPhy txPhy,
+    required BluetoothPhy rxPhy,
+    int phyOptions = 0,
+  }) {
+    return _platform.setPreferredPhy(
+      deviceId: deviceId,
+      txPhy: txPhy,
+      rxPhy: rxPhy,
+      phyOptions: phyOptions,
+    );
+  }
+
+  Future<BluetoothPhyEvent> readPhy(String deviceId) {
+    return _platform.readPhy(deviceId);
+  }
+
+  Stream<BluetoothPhyEvent> get phyUpdates => _platform.phyUpdates;
 
   Future<bool> requestConnectionPriority(
     String deviceId,
@@ -203,4 +253,116 @@ class FlutterBluetoothPlugin {
   }
 
   Stream<BluetoothBondStateEvent> get bondState => _platform.bondState;
+
+  Future<bool> isPeripheralSupported() {
+    return _platform.isPeripheralSupported();
+  }
+
+  Future<void> startAdvertising({
+    BluetoothAdvertisementData advertisementData =
+        const BluetoothAdvertisementData(),
+    BluetoothAdvertisementData? scanResponse,
+    BluetoothAdvertisingSettings settings =
+        const BluetoothAdvertisingSettings(),
+  }) {
+    return _platform.startAdvertising(
+      advertisementData: advertisementData,
+      scanResponse: scanResponse,
+      settings: settings,
+    );
+  }
+
+  Future<void> stopAdvertising() {
+    return _platform.stopAdvertising();
+  }
+
+  Stream<BluetoothAdvertisingStateEvent> get advertisingState {
+    return _platform.advertisingState;
+  }
+
+  Future<void> setGattServerServices(List<BluetoothGattService> services) {
+    return _platform.setGattServerServices(services);
+  }
+
+  Future<void> clearGattServerServices() {
+    return _platform.clearGattServerServices();
+  }
+
+  Future<void> updateLocalCharacteristicValue({
+    required String serviceUuid,
+    required String characteristicUuid,
+    required List<int> value,
+  }) {
+    return _platform.updateLocalCharacteristicValue(
+      serviceUuid: serviceUuid,
+      characteristicUuid: characteristicUuid,
+      value: value,
+    );
+  }
+
+  Future<bool> notifyGattServerCharacteristic({
+    String? deviceId,
+    required String serviceUuid,
+    required String characteristicUuid,
+    required List<int> value,
+    bool confirm = false,
+  }) {
+    return _platform.notifyGattServerCharacteristic(
+      deviceId: deviceId,
+      serviceUuid: serviceUuid,
+      characteristicUuid: characteristicUuid,
+      value: value,
+      confirm: confirm,
+    );
+  }
+
+  Stream<BluetoothGattServerRequest> get gattServerRequests {
+    return _platform.gattServerRequests;
+  }
+
+  Future<void> connectClassic({
+    required String deviceId,
+    required String serviceUuid,
+    bool secure = true,
+    Duration? timeout,
+  }) {
+    return _platform.connectClassic(
+      deviceId: deviceId,
+      serviceUuid: serviceUuid,
+      secure: secure,
+      timeout: timeout,
+    );
+  }
+
+  Future<void> startClassicServer({
+    required String serviceUuid,
+    String serviceName = 'FlutterBluetoothPlugin',
+    bool secure = true,
+  }) {
+    return _platform.startClassicServer(
+      serviceUuid: serviceUuid,
+      serviceName: serviceName,
+      secure: secure,
+    );
+  }
+
+  Future<void> stopClassicServer() {
+    return _platform.stopClassicServer();
+  }
+
+  Future<void> disconnectClassic(String deviceId) {
+    return _platform.disconnectClassic(deviceId);
+  }
+
+  Future<void> writeClassic(String deviceId, List<int> value) {
+    return _platform.writeClassic(deviceId, value);
+  }
+
+  Stream<BluetoothClassicConnectionEvent> get classicConnectionState {
+    return _platform.classicConnectionState;
+  }
+
+  Stream<BluetoothClassicDataEvent> get classicData {
+    return _platform.classicData;
+  }
 }

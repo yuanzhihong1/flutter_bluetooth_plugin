@@ -17,6 +17,19 @@ class FakeBluetoothPlatform extends FlutterBluetoothPluginPlatform {
   }
 
   @override
+  Future<BluetoothAdapterInfo> getAdapterInfo() async {
+    return const BluetoothAdapterInfo(
+      isSupported: true,
+      state: BluetoothAdapterState.poweredOn,
+      isBleSupported: true,
+      isMultipleAdvertisementSupported: true,
+    );
+  }
+
+  @override
+  Future<bool> isPeripheralSupported() async => true;
+
+  @override
   Future<Map<String, BluetoothPermissionStatus>> checkPermissions() async {
     return const <String, BluetoothPermissionStatus>{
       'bluetooth': BluetoothPermissionStatus.granted,
@@ -61,6 +74,31 @@ class FakeBluetoothPlatform extends FlutterBluetoothPluginPlatform {
   @override
   Stream<BluetoothBondStateEvent> get bondState {
     return const Stream<BluetoothBondStateEvent>.empty();
+  }
+
+  @override
+  Stream<BluetoothAdvertisingStateEvent> get advertisingState {
+    return const Stream<BluetoothAdvertisingStateEvent>.empty();
+  }
+
+  @override
+  Stream<BluetoothGattServerRequest> get gattServerRequests {
+    return const Stream<BluetoothGattServerRequest>.empty();
+  }
+
+  @override
+  Stream<BluetoothPhyEvent> get phyUpdates {
+    return const Stream<BluetoothPhyEvent>.empty();
+  }
+
+  @override
+  Stream<BluetoothClassicConnectionEvent> get classicConnectionState {
+    return const Stream<BluetoothClassicConnectionEvent>.empty();
+  }
+
+  @override
+  Stream<BluetoothClassicDataEvent> get classicData {
+    return const Stream<BluetoothClassicDataEvent>.empty();
   }
 }
 
