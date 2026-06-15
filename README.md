@@ -1,11 +1,12 @@
 # flutter_bluetooth_plugin
 
-A Flutter Bluetooth plugin backed by native Android, iOS, and macOS APIs.
+A Flutter Bluetooth plugin backed by native Android, iOS, macOS APIs and the
+browser Web Bluetooth API.
 
-The plugin exposes a MethodChannel API for Bluetooth permissions, adapter state,
-scanning, connections, GATT client operations, GATT server/peripheral mode,
-advertising, notifications, RSSI, MTU, PHY, Android bonding, Android connection
-priority, and Android Classic RFCOMM sockets.
+The plugin exposes a cross-platform API for Bluetooth permissions, adapter state,
+scanning/device selection, connections, GATT client operations, GATT
+server/peripheral mode, advertising, notifications, RSSI, MTU, PHY, Android
+bonding, Android connection priority, and Android Classic RFCOMM sockets.
 
 ## Platform coverage
 
@@ -22,15 +23,20 @@ priority, and Android Classic RFCOMM sockets.
   characteristic/descriptor IO, notifications, RSSI, local GATT services, and
   advertising with local name/service UUIDs. macOS uses CoreBluetooth UUIDs for
   device IDs and does not expose Bluetooth adapter addresses.
-- Web: currently returns unsupported states and empty streams.
+- Web: Web Bluetooth BLE Central/GATT Client support in secure contexts.
+  `startScan()` opens the browser device chooser and emits the selected device
+  as one scan result. Web does not support passive/background scanning, RSSI,
+  MTU negotiation, PHY, bonding management, BLE advertising/peripheral mode, or
+  Classic Bluetooth.
 
 Some platform APIs do not exist publicly on every system. iOS and macOS cannot
 enable Bluetooth programmatically, do not expose Classic Bluetooth RFCOMM,
 do not expose Android-style bonding or connection priority, and do not expose
-public MTU negotiation. Those APIs return `false`, empty lists, no-op for
-void-only hints such as PHY selection, an unsupported error for macOS Classic
-connect/server/write calls, or the current CoreBluetooth maximum write length
-where appropriate.
+public MTU negotiation. Web Bluetooth is chooser-based and exposes only
+site-authorized BLE GATT devices/services. Unsupported APIs return `false`,
+empty lists/streams, no-op for safe stop/clear calls, `0` for unavailable MTU or
+write-length values, or an unsupported error for operations that cannot be
+represented on that platform.
 
 ## Permissions
 
@@ -57,6 +63,12 @@ For iOS, the host app must include usage descriptions in `Info.plist`:
 <key>NSBluetoothPeripheralUsageDescription</key>
 <string>This app uses Bluetooth to communicate with nearby peripherals.</string>
 ```
+
+For Web, Bluetooth access must be triggered from a user gesture in a secure
+context (HTTPS or localhost). `requestPermissions()` only reports status; call
+`startScan(serviceUuids: [...])` from a button/tap handler to open the browser
+device chooser. Pass the GATT service UUIDs you need so the browser grants
+access to those services after connection.
 
 For macOS, the host app should include a usage description and, when sandboxed,
 the Bluetooth entitlement:
@@ -86,6 +98,7 @@ final sub = bluetooth.scanResults.listen((result) {
   print('${result.device.id} ${result.device.name} RSSI=${result.rssi}');
 });
 
+// On Web this must run from a user gesture and opens the browser chooser.
 await bluetooth.startScan(timeout: const Duration(seconds: 10));
 await Future<void>.delayed(const Duration(seconds: 10));
 await bluetooth.stopScan();

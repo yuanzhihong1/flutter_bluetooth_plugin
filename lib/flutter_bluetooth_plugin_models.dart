@@ -3,7 +3,8 @@ library;
 
 /// 蓝牙适配器状态。
 ///
-/// Android/iOS/macOS 会映射系统状态；Web 使用 [unsupported]；未知或无法识别的原生值会映射为
+/// Android/iOS/macOS 会映射系统状态；Web 会根据 Web Bluetooth availability 映射
+/// [poweredOn]/[poweredOff]，不支持时使用 [unsupported]；未知或无法识别的原生值会映射为
 /// [unknown]。
 enum BluetoothAdapterState {
   /// 状态未知，通常表示原生侧返回了未识别状态。
@@ -33,8 +34,9 @@ enum BluetoothAdapterState {
 
 /// 蓝牙权限状态。
 ///
-/// Android 会按具体权限返回多个键；iOS/macOS 通常只返回 `bluetooth`；Web 返回
-/// [notApplicable]。
+/// Android 会按具体权限返回多个键；iOS/macOS 通常只返回 `bluetooth`；Web 没有全局
+/// 预授权，不支持时返回 [notApplicable]，已授权过设备时返回 [granted]，否则返回
+/// [notDetermined]。
 enum BluetoothPermissionStatus {
   /// 状态未知，通常表示原生侧返回了未识别值。
   unknown,
@@ -60,8 +62,8 @@ enum BluetoothPermissionStatus {
 
 /// 扫描模式。
 ///
-/// [ble] 为默认值和跨平台推荐值；[classic] 与 [dual] 仅 Android 有意义，iOS/macOS/Web
-/// 不支持 Classic Bluetooth。
+/// [ble] 为默认值和跨平台推荐值；[classic] 与 [dual] 的 Classic 部分仅 Android 有意义，
+/// iOS/macOS/Web 不支持 Classic Bluetooth。Web 的 [dual] 仅使用 BLE 设备选择器。
 enum BluetoothScanMode {
   /// 仅扫描 BLE 设备，默认值，跨平台推荐。
   ble,
@@ -241,7 +243,7 @@ Map<String, List<int>> _asServiceData(Object? value) {
 /// 蓝牙设备摘要信息。
 ///
 /// Android 的 [id] 通常为 MAC 地址；iOS/macOS 的 [id] 为 CoreBluetooth peripheral UUID；
-/// Web 当前不会返回真实设备。
+/// Web 的 [id] 为浏览器生成的站点内设备 ID，且不公开真实蓝牙地址。
 class BluetoothDevice {
   /// 创建设备信息。
   ///
@@ -279,7 +281,7 @@ class BluetoothDevice {
     );
   }
 
-  /// 设备标识。Android 通常为 MAC，iOS/macOS 为 peripheral UUID。
+  /// 设备标识。Android 通常为 MAC，iOS/macOS 为 peripheral UUID，Web 为浏览器生成 ID。
   final String id;
 
   /// 设备名称，可能为空。
@@ -892,8 +894,8 @@ class BluetoothAdapterInfo {
   /// 参数：
   /// - [isSupported]：是否支持蓝牙，无默认值。
   /// - [state]：当前适配器状态，无默认值。
-  /// - [name]：适配器名称，默认 `null`。Android 需要连接权限；iOS/macOS 通常不公开。
-  /// - [address]：适配器地址，默认 `null`。Android 可能受系统限制；iOS/macOS 不公开。
+  /// - [name]：适配器名称，默认 `null`。Android 需要连接权限；iOS/macOS/Web 通常不公开。
+  /// - [address]：适配器地址，默认 `null`。Android 可能受系统限制；iOS/macOS/Web 不公开。
   /// - [isBleSupported]：是否支持 BLE，默认 `false`。
   /// - [isMultipleAdvertisementSupported]：是否支持多广播，默认 `false`；主要 Android 能力。
   /// - [isOffloadedFilteringSupported]：是否支持硬件离线过滤，默认 `false`；Android 能力。
@@ -902,7 +904,7 @@ class BluetoothAdapterInfo {
   /// - [isLeCodedPhySupported]：是否支持 LE Coded PHY，默认 `false`；Android 8.0+ 能力。
   /// - [isLeExtendedAdvertisingSupported]：是否支持扩展广播，默认 `false`；Android 8.0+ 能力。
   /// - [isLePeriodicAdvertisingSupported]：是否支持周期广播，默认 `false`；Android 8.0+ 能力。
-  /// - [isDiscovering]：当前是否正在扫描/发现，默认 `false`。
+  /// - [isDiscovering]：当前是否正在扫描/发现，默认 `false`；Web 仅表示设备选择器是否打开。
   /// - [raw]：原生完整字段，默认 `const <String, dynamic>{}`。
   const BluetoothAdapterInfo({
     required this.isSupported,
@@ -955,10 +957,10 @@ class BluetoothAdapterInfo {
   /// 当前适配器状态。
   final BluetoothAdapterState state;
 
-  /// 适配器名称，默认 `null`。
+  /// 适配器名称，默认 `null`；Web 不公开。
   final String? name;
 
-  /// 适配器地址，默认 `null`。
+  /// 适配器地址，默认 `null`；Web 不公开。
   final String? address;
 
   /// 是否支持 BLE，默认 `false`。
@@ -985,7 +987,7 @@ class BluetoothAdapterInfo {
   /// 是否支持周期广播，默认 `false`；Android 8.0+ 能力。
   final bool isLePeriodicAdvertisingSupported;
 
-  /// 当前是否正在扫描/发现，默认 `false`。
+  /// 当前是否正在扫描/发现，默认 `false`；Web 仅表示设备选择器是否打开。
   final bool isDiscovering;
 
   /// 原生完整字段，默认空 Map。
