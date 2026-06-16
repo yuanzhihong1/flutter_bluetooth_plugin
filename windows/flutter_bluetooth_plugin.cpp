@@ -574,15 +574,9 @@ class FlutterBluetoothPlugin::Impl
     : public std::enable_shared_from_this<FlutterBluetoothPlugin::Impl> {
  public:
   Impl() {
-    try {
-      winrt::init_apartment(winrt::apartment_type::multi_threaded);
-    } catch (const winrt::hresult_error& error) {
-      // Flutter or another plugin may have already initialized COM with a
-      // different apartment. C++/WinRT APIs remain usable in that case.
-      if (error.code() != winrt::hresult(RPC_E_CHANGED_MODE)) {
-        throw;
-      }
-    }
+    // Initialize COM as STA. Windows Bluetooth / WinRT APIs MUST run on STA.
+    // Flutter's Windows embedding initializes the platform thread as STA.
+    winrt::init_apartment(winrt::apartment_type::single_threaded);
   }
 
   ~Impl() {
@@ -1109,7 +1103,7 @@ class FlutterBluetoothPlugin::Impl
       for (const auto& service : services_result.Services()) {
         cached_services.push_back(service);
       }
-      service_cache_[DeviceKey(device)] = std::move(cached_services);
+      service_cache_.insert_or_assign(DeviceKey(device), std::move(cached_services));
     }
     SendConnectionStateEvent(DeviceKey(device),
                              ConnectionStateString(device.ConnectionStatus()),
@@ -1181,7 +1175,7 @@ class FlutterBluetoothPlugin::Impl
     }
     {
       std::lock_guard<std::mutex> lock(device_mutex_);
-      service_cache_[key] = std::move(cache);
+      service_cache_.insert_or_assign(key, std::move(cache));
     }
     return services;
   }
@@ -1283,7 +1277,7 @@ class FlutterBluetoothPlugin::Impl
     }
 
     std::lock_guard<std::mutex> lock(device_mutex_);
-    subscriptions_[key] = CharacteristicSubscription{characteristic, token};
+    subscriptions_.insert_or_assign(key, CharacteristicSubscription{characteristic, token});
   }
 
   std::vector<uint8_t> ReadDescriptor(const EncodableMap* args) {
@@ -1461,7 +1455,7 @@ class FlutterBluetoothPlugin::Impl
     GattCharacteristic characteristic = result.Characteristics().GetAt(0);
     {
       std::lock_guard<std::mutex> lock(device_mutex_);
-      characteristic_cache_[key] = characteristic;
+      characteristic_cache_.insert_or_assign(key, characteristic);
     }
     return characteristic;
   }
@@ -1494,7 +1488,7 @@ class FlutterBluetoothPlugin::Impl
     GattDescriptor descriptor = result.Descriptors().GetAt(0);
     {
       std::lock_guard<std::mutex> lock(device_mutex_);
-      descriptor_cache_[key] = descriptor;
+      descriptor_cache_.insert_or_assign(key, descriptor);
     }
     return descriptor;
   }
@@ -1522,7 +1516,7 @@ class FlutterBluetoothPlugin::Impl
   std::string RememberDevice(const BluetoothLEDevice& device) {
     const std::string key = DeviceKey(device);
     std::lock_guard<std::mutex> lock(device_mutex_);
-    devices_[key] = device;
+    devices_.insert_or_assign(key, device);
     device_aliases_[HStringToString(device.DeviceId())] = key;
     if (device.BluetoothAddress() != 0) {
       device_aliases_[FormatBluetoothAddress(device.BluetoothAddress())] = key;
