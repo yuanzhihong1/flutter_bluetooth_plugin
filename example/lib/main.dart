@@ -57,9 +57,8 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
   final TextEditingController _adapterNameController = TextEditingController(
     text: 'Flutter 蓝牙',
   );
-  final TextEditingController _serviceFilterController = TextEditingController(
-    text: _sampleServiceUuid,
-  );
+  final TextEditingController _serviceFilterController =
+      TextEditingController();
   final TextEditingController _descriptorWriteController =
       TextEditingController(text: '01 00');
   final TextEditingController _classicWriteController = TextEditingController(

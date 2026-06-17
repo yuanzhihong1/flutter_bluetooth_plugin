@@ -49,14 +49,6 @@ dependencies:
   flutter_bluetooth_plugin: ^0.0.1
 ```
 
-本仓库自带的 `example/` 使用本地 path 依赖，方便直接验证当前源码：
-
-```yaml
-dependencies:
-  flutter_bluetooth_plugin:
-    path: ../
-```
-
 导入插件：
 
 ```dart

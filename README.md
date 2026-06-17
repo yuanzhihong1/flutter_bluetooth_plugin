@@ -57,15 +57,6 @@ dependencies:
   flutter_bluetooth_plugin: ^0.0.1
 ```
 
-For local development from this repository, the bundled example uses a path
-dependency:
-
-```yaml
-dependencies:
-  flutter_bluetooth_plugin:
-    path: ../
-```
-
 Import the package:
 
 ```dart
