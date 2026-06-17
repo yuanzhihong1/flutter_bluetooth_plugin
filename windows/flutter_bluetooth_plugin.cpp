@@ -32,10 +32,14 @@
 #include <atomic>
 #include <chrono>
 #include <cctype>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <exception>
+#include <functional>
+#include <future>
 #include <iomanip>
 #include <memory>
 #include <mutex>
@@ -573,15 +577,17 @@ EncodableMap ServiceMap(const GattDeviceService& service) {
 class FlutterBluetoothPlugin::Impl
     : public std::enable_shared_from_this<FlutterBluetoothPlugin::Impl> {
  public:
-  Impl() {
-    // Initialize COM as STA. Windows Bluetooth / WinRT APIs MUST run on STA.
-    // Flutter's Windows embedding initializes the platform thread as STA.
-    winrt::init_apartment(winrt::apartment_type::single_threaded);
-  }
+  Impl() : worker_thread_([this]() { WorkerLoop(); }) {}
 
   ~Impl() {
-    StopScanInternal();
-    CloseDevicesInternal();
+    try {
+      RunOnWorkerSync([this]() {
+        StopScanInternal();
+        CloseDevicesInternal();
+      });
+    } catch (...) {
+    }
+    StopWorker();
     ClearEventSink();
   }
 
@@ -591,10 +597,10 @@ class FlutterBluetoothPlugin::Impl
       event_sink_ = std::move(events);
     }
 
-    EncodableMap event;
-    Put(event, "type", StringValue("adapterState"));
-    Put(event, "state", StringValue(CurrentAdapterStateString()));
-    SendEvent(std::move(event));
+    try {
+      RunOnWorkerSync([this]() { SendAdapterStateEvent(); });
+    } catch (...) {
+    }
   }
 
   void OnCancel() { ClearEventSink(); }
@@ -605,6 +611,22 @@ class FlutterBluetoothPlugin::Impl
     const std::string& method = method_call.method_name();
     const EncodableMap* args = ArgumentsAsMap(method_call);
 
+    try {
+      RunOnWorkerSync([this, &method, args, &result]() {
+        HandleMethodCallOnWorker(method, args, result.get());
+      });
+    } catch (const std::exception& error) {
+      result->Error(kOperationFailedCode, error.what());
+    } catch (...) {
+      result->Error(kOperationFailedCode, "Windows Bluetooth worker failed.");
+    }
+  }
+
+ private:
+  void HandleMethodCallOnWorker(
+      const std::string& method,
+      const EncodableMap* args,
+      flutter::MethodResult<EncodableValue>* result) {
     try {
       if (method == "getPlatformVersion") {
         result->Success(EncodableValue(GetPlatformVersion()));
@@ -626,7 +648,7 @@ class FlutterBluetoothPlugin::Impl
         OpenBluetoothSettings();
         result->Success();
       } else if (method == "startScan") {
-        StartScan(args, result.get());
+        StartScan(args, result);
       } else if (method == "stopScan") {
         StopScanInternal();
         result->Success();
@@ -635,7 +657,7 @@ class FlutterBluetoothPlugin::Impl
       } else if (method == "getConnectedDevices") {
         result->Success(EncodableValue(GetConnectedDevices(args)));
       } else if (method == "getDevice") {
-        GetDevice(args, result.get());
+        GetDevice(args, result);
       } else if (method == "getDevices") {
         result->Success(EncodableValue(GetDevices(args)));
       } else if (method == "connect") {
@@ -711,7 +733,81 @@ class FlutterBluetoothPlugin::Impl
     }
   }
 
- private:
+  void WorkerLoop() {
+    winrt::init_apartment(winrt::apartment_type::multi_threaded);
+    for (;;) {
+      std::function<void()> task;
+      {
+        std::unique_lock<std::mutex> lock(worker_mutex_);
+        worker_cv_.wait(lock, [this]() {
+          return worker_stopping_ || !worker_tasks_.empty();
+        });
+        if (worker_stopping_ && worker_tasks_.empty()) {
+          break;
+        }
+        task = std::move(worker_tasks_.front());
+        worker_tasks_.pop_front();
+      }
+
+      try {
+        task();
+      } catch (...) {
+      }
+    }
+    winrt::uninit_apartment();
+  }
+
+  bool PostWorkerTask(std::function<void()> task) {
+    {
+      std::lock_guard<std::mutex> lock(worker_mutex_);
+      if (worker_stopping_) {
+        return false;
+      }
+      worker_tasks_.push_back(std::move(task));
+    }
+    worker_cv_.notify_one();
+    return true;
+  }
+
+  void RunOnWorkerSync(std::function<void()> task) {
+    if (worker_thread_.joinable() &&
+        std::this_thread::get_id() == worker_thread_.get_id()) {
+      task();
+      return;
+    }
+
+    std::promise<void> completed;
+    auto completed_future = completed.get_future();
+    std::exception_ptr exception;
+    if (!PostWorkerTask([&task, &completed, &exception]() {
+          try {
+            task();
+          } catch (...) {
+            exception = std::current_exception();
+          }
+          completed.set_value();
+        })) {
+      throw std::runtime_error("Bluetooth worker is stopping.");
+    }
+
+    completed_future.wait();
+    if (exception) {
+      std::rethrow_exception(exception);
+    }
+  }
+
+  void StopWorker() {
+    {
+      std::lock_guard<std::mutex> lock(worker_mutex_);
+      worker_stopping_ = true;
+    }
+    worker_cv_.notify_one();
+    if (worker_thread_.joinable() &&
+        std::this_thread::get_id() != worker_thread_.get_id()) {
+      worker_thread_.join();
+    }
+  }
+
   std::string GetPlatformVersion() const {
     std::ostringstream version_stream;
     version_stream << "Windows ";
@@ -824,9 +920,9 @@ class FlutterBluetoothPlugin::Impl
     }
 
     StopScanInternal();
-    allow_duplicates_ = GetBoolArg(args, "allowDuplicates", false);
     {
       std::lock_guard<std::mutex> lock(scan_mutex_);
+      allow_duplicates_ = GetBoolArg(args, "allowDuplicates", false);
       seen_scan_devices_.clear();
     }
 
@@ -849,7 +945,11 @@ class FlutterBluetoothPlugin::Impl
         [weak_self = weak_from_this()](const BluetoothLEAdvertisementWatcher&,
                                        const BluetoothLEAdvertisementWatcherStoppedEventArgs&) {
           if (auto self = weak_self.lock()) {
-            self->SendAdapterStateEvent();
+            self->PostWorkerTask([weak_self]() {
+              if (auto self = weak_self.lock()) {
+                self->SendAdapterStateEvent();
+              }
+            });
           }
         });
 
@@ -862,7 +962,11 @@ class FlutterBluetoothPlugin::Impl
       std::thread([weak_self, generation, timeout = *timeout_ms]() {
         std::this_thread::sleep_for(std::chrono::milliseconds(timeout));
         if (auto self = weak_self.lock()) {
-          self->StopScanIfGeneration(generation);
+          self->PostWorkerTask([weak_self, generation]() {
+            if (auto self = weak_self.lock()) {
+              self->StopScanIfGeneration(generation);
+            }
+          });
         }
       }).detach();
     }
@@ -911,34 +1015,21 @@ class FlutterBluetoothPlugin::Impl
       last_rssi_[device_id] = args.RawSignalStrengthInDBm();
     }
 
-    BluetoothLEDevice device = nullptr;
-    try {
-      device = BluetoothLEDevice::FromBluetoothAddressAsync(address).get();
-      if (device) {
-        RememberDevice(device);
-      }
-    } catch (...) {
-    }
-
     EncodableMap scan_result;
-    if (device) {
-      Put(scan_result, "device", EncodableValue(DeviceMapFromDevice(device)));
-    } else {
-      EncodableMap device_map;
-      const std::string local_name = HStringToString(args.Advertisement().LocalName());
-      Put(device_map, "id", StringValue(device_id));
-      Put(device_map, "name", local_name.empty() ? NullValue() : StringValue(local_name));
-      Put(device_map, "address", StringValue(FormatBluetoothAddressDisplay(address)));
-      Put(device_map, "type", StringValue("ble"));
-      Put(device_map, "isConnected", EncodableValue(false));
-      Put(device_map, "isBonded", EncodableValue(false));
-      Put(device_map, "raw", EncodableValue(RawWindowsMap()));
-      Put(scan_result, "device", EncodableValue(std::move(device_map)));
-    }
+    EncodableMap device_map;
+    const std::string local_name = HStringToString(args.Advertisement().LocalName());
+    Put(device_map, "id", StringValue(device_id));
+    Put(device_map, "name",
+        local_name.empty() ? NullValue() : StringValue(local_name));
+    Put(device_map, "address", StringValue(FormatBluetoothAddressDisplay(address)));
+    Put(device_map, "type", StringValue("ble"));
+    Put(device_map, "isConnected", EncodableValue(false));
+    Put(device_map, "isBonded", EncodableValue(false));
+    Put(device_map, "raw", EncodableValue(RawWindowsMap()));
+    Put(scan_result, "device", EncodableValue(std::move(device_map)));
 
     Put(scan_result, "rssi",
         EncodableValue(static_cast<int32_t>(args.RawSignalStrengthInDBm())));
-    const std::string local_name = HStringToString(args.Advertisement().LocalName());
     Put(scan_result, "localName", local_name.empty() ? NullValue() : StringValue(local_name));
 
     std::vector<std::string> service_uuids;
@@ -1658,6 +1749,12 @@ class FlutterBluetoothPlugin::Impl
     GattCharacteristic characteristic{nullptr};
     winrt::event_token token{};
   };
+
+  mutable std::mutex worker_mutex_;
+  std::condition_variable worker_cv_;
+  std::deque<std::function<void()>> worker_tasks_;
+  bool worker_stopping_ = false;
+  std::thread worker_thread_;
 
   mutable std::mutex event_mutex_;
   std::unique_ptr<flutter::EventSink<EncodableValue>> event_sink_;
