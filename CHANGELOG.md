@@ -1,4 +1,4 @@
-## 0.0.1
+## 1.0.0
 
 * Initial release of the cross-platform Flutter Bluetooth plugin.
 * Added adapter state/info, permission helpers, scanning, device lookup, and BLE GATT client APIs.
