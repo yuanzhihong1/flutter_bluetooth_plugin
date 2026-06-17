@@ -1,6 +1,6 @@
 name: flutter_bluetooth_plugin
 description: A cross-platform Flutter Bluetooth plugin for BLE, GATT, advertising, BlueZ, WinRT, Web Bluetooth, and Android Classic RFCOMM.
-version: 0.0.1
+version: 1.0.0
 homepage: https://github.com/yuanzhihong1/flutter_bluetooth_plugin
 repository: https://github.com/yuanzhihong1/flutter_bluetooth_plugin
 issue_tracker: https://github.com/yuanzhihong1/flutter_bluetooth_plugin/issues
