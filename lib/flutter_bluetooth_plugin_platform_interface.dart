@@ -657,8 +657,8 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
   /// - [timeout]：连接超时，默认 `null`。当前 Android 原生 Classic 连接未强制使用该超时，
   ///   建议业务层自行设置兜底超时。
   ///
-  /// 平台差异：仅 Android 实现；Linux/macOS/Windows 会返回 `unsupported` 错误；iOS/Web
-  /// 不支持 Classic Bluetooth。
+  /// 平台差异：仅 Android 实现；iOS/macOS/Linux/Windows 会返回 `unsupported` 错误；Web
+  /// 会抛出 UnsupportedError。
   Future<void> connectClassic({
     required String deviceId,
     required String serviceUuid,
@@ -675,8 +675,8 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
   /// - [serviceName]：服务名称，默认 `FlutterBluetoothPlugin`。
   /// - [secure]：是否使用安全 RFCOMM，默认 `true`。对外发布生产服务推荐 `true`。
   ///
-  /// 平台差异：仅 Android 实现；Linux/macOS/Windows 会返回 `unsupported` 错误；iOS/Web
-  /// 不支持 Classic Bluetooth。
+  /// 平台差异：仅 Android 实现；iOS/macOS/Linux/Windows 会返回 `unsupported` 错误；Web
+  /// 会抛出 UnsupportedError。
   Future<void> startClassicServer({
     required String serviceUuid,
     String serviceName = 'FlutterBluetoothPlugin',
@@ -687,7 +687,7 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
 
   /// 停止 Android Classic Bluetooth RFCOMM 服务端。
   ///
-  /// 无参数。仅 Android 有效；Linux/macOS/Windows/Web 为空操作，其它平台不支持。
+  /// 无参数。仅 Android 有效；iOS/macOS/Linux/Windows/Web 为空操作。
   Future<void> stopClassicServer() {
     throw UnimplementedError('stopClassicServer() has not been implemented.');
   }
@@ -695,7 +695,7 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
   /// 断开 Classic Bluetooth RFCOMM 连接。
   ///
   /// 参数：
-  /// - [deviceId]：Classic 设备地址，无默认值。仅 Android 有效；Linux/macOS/Windows/Web
+  /// - [deviceId]：Classic 设备地址，无默认值。仅 Android 有效；iOS/macOS/Linux/Windows/Web
   ///   为空操作。
   Future<void> disconnectClassic(String deviceId) {
     throw UnimplementedError('disconnectClassic() has not been implemented.');
@@ -707,8 +707,8 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
   /// - [deviceId]：Classic 设备地址，无默认值。
   /// - [value]：要写入的字节数组，无默认值。
   ///
-  /// 平台差异：仅 Android 实现；Linux/macOS/Windows 会返回 `unsupported` 错误；iOS/Web
-  /// 不支持 Classic Bluetooth。
+  /// 平台差异：仅 Android 实现；iOS/macOS/Linux/Windows 会返回 `unsupported` 错误；Web
+  /// 会抛出 UnsupportedError。
   Future<void> writeClassic(String deviceId, List<int> value) {
     throw UnimplementedError('writeClassic() has not been implemented.');
   }

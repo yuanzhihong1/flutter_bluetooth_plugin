@@ -2,6 +2,11 @@ import CoreBluetooth
 import Flutter
 import UIKit
 
+/// iOS implementation backed by CoreBluetooth.
+///
+/// CoreBluetooth on iOS exposes BLE central/peripheral APIs, but it does not
+/// expose public Classic RFCOMM, adapter renaming, programmatic Bluetooth
+/// enabling, bonding management, connection priority, or PHY control.
 public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CBCentralManagerDelegate, CBPeripheralDelegate, CBPeripheralManagerDelegate {
   private var centralManager: CBCentralManager?
   private var peripheralManager: CBPeripheralManager?
@@ -46,12 +51,14 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     case "isScanning":
       result(centralManager?.isScanning == true)
     case "setAdapterName":
+      // CoreBluetooth does not allow apps to rename the host Bluetooth adapter on iOS.
       result(false)
     case "checkPermissions":
       result(permissionMap())
     case "requestPermissions":
       handleRequestPermissions(result: result)
     case "requestEnable":
+      // iOS apps cannot programmatically power Bluetooth on; callers should open settings.
       result(false)
     case "openBluetoothSettings":
       openBluetoothSettings(result: result)
@@ -92,12 +99,16 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     case "getMaximumWriteLength":
       getMaximumWriteLength(arguments: call.arguments, result: result)
     case "setPreferredPhy":
-      result(FlutterMethodNotImplemented)
+      // iOS CoreBluetooth does not expose BLE PHY selection; keep this as a no-op
+      // so the cross-platform Future<void> API can be called safely.
+      result(nil)
     case "readPhy":
       result(["deviceId": (call.arguments as? [String: Any])?["deviceId"] as? String ?? "", "txPhy": "unknown", "rxPhy": "unknown"])
     case "requestConnectionPriority":
+      // Android-only connection priority hint; CoreBluetooth manages this automatically.
       result(false)
     case "createBond", "removeBond":
+      // Pairing is system-managed on iOS and not exposed as create/remove bond APIs.
       result(false)
     case "isPeripheralSupported":
       result(true)
@@ -113,8 +124,12 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
       updateLocalCharacteristicValue(arguments: call.arguments, result: result)
     case "notifyGattServerCharacteristic":
       notifyGattServerCharacteristic(arguments: call.arguments, result: result)
-    case "connectClassic", "startClassicServer", "stopClassicServer", "disconnectClassic", "writeClassic":
-      result(FlutterMethodNotImplemented)
+    case "connectClassic", "startClassicServer", "writeClassic":
+      // iOS Classic Bluetooth/RFCOMM is not available through CoreBluetooth.
+      result(FlutterError(code: "unsupported", message: "Classic Bluetooth RFCOMM is not supported on iOS.", details: nil))
+    case "stopClassicServer", "disconnectClassic":
+      // No Classic resources can be opened on iOS, so stop/disconnect are safe no-ops.
+      result(nil)
     default:
       result(FlutterMethodNotImplemented)
     }
