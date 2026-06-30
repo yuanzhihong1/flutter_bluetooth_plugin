@@ -1,6 +1,8 @@
 /// Flutter 蓝牙插件 API 共用的中文模型、枚举和转换函数。
 library;
 
+import 'dart:typed_data';
+
 /// 蓝牙适配器状态。
 ///
 /// Android/iOS/macOS 会映射系统状态；Web 会根据 Web Bluetooth availability 映射
@@ -195,11 +197,22 @@ List<String> _asStringList(Object? value) {
   return (value as List<dynamic>).map((item) => item.toString()).toList();
 }
 
-List<int> _asByteList(Object? value) {
+Uint8List _asByteList(Object? value) {
   if (value == null) {
-    return const <int>[];
+    return Uint8List(0);
   }
-  return (value as List<dynamic>).map((item) => (item as num).toInt()).toList();
+  if (value is Uint8List) {
+    return value;
+  }
+  if (value is ByteData) {
+    return value.buffer.asUint8List(value.offsetInBytes, value.lengthInBytes);
+  }
+  if (value is List<int>) {
+    return Uint8List.fromList(value);
+  }
+  return Uint8List.fromList(
+    (value as List<dynamic>).map((item) => (item as num).toInt()).toList(),
+  );
 }
 
 bool _asBool(Object? value, {bool defaultValue = false}) {
@@ -228,14 +241,14 @@ bool? _asNullableBool(Object? value) {
   return null;
 }
 
-Map<int, List<int>> _asManufacturerData(Object? value) {
+Map<int, Uint8List> _asManufacturerData(Object? value) {
   final map = _asStringMap(value);
   return map.map(
     (key, bytes) => MapEntry(int.tryParse(key) ?? 0, _asByteList(bytes)),
   );
 }
 
-Map<String, List<int>> _asServiceData(Object? value) {
+Map<String, Uint8List> _asServiceData(Object? value) {
   final map = _asStringMap(value);
   return map.map((key, bytes) => MapEntry(key, _asByteList(bytes)));
 }
@@ -334,8 +347,8 @@ class BluetoothScanResult {
   /// - [rssi]：信号强度 dBm，无默认值，越接近 0 信号越强。
   /// - [localName]：广播本地名称，默认 `null`。
   /// - [serviceUuids]：广播服务 UUID，默认 `const <String>[]`。
-  /// - [manufacturerData]：厂商数据，默认 `const <int, List<int>>{}`；key 为 Company ID。
-  /// - [serviceData]：服务数据，默认 `const <String, List<int>>{}`。
+  /// - [manufacturerData]：厂商数据，默认 `const <int, Uint8List>{}`；key 为 Company ID。
+  /// - [serviceData]：服务数据，默认 `const <String, Uint8List>{}`。
   /// - [txPowerLevel]：广播发射功率，默认 `null`。
   /// - [isConnectable]：是否可连接，默认 `null`，并非所有平台都会返回。
   /// - [raw]：原生完整字段，默认 `const <String, dynamic>{}`。
@@ -344,8 +357,8 @@ class BluetoothScanResult {
     required this.rssi,
     this.localName,
     this.serviceUuids = const <String>[],
-    this.manufacturerData = const <int, List<int>>{},
-    this.serviceData = const <String, List<int>>{},
+    this.manufacturerData = const <int, Uint8List>{},
+    this.serviceData = const <String, Uint8List>{},
     this.txPowerLevel,
     this.isConnectable,
     this.raw = const <String, dynamic>{},
@@ -383,10 +396,10 @@ class BluetoothScanResult {
   final List<String> serviceUuids;
 
   /// 厂商数据，默认空 Map；key 为蓝牙 SIG Company ID。
-  final Map<int, List<int>> manufacturerData;
+  final Map<int, Uint8List> manufacturerData;
 
   /// 服务数据，默认空 Map；key 为服务 UUID。
-  final Map<String, List<int>> serviceData;
+  final Map<String, Uint8List> serviceData;
 
   /// 广播发射功率，默认 `null`。
   final int? txPowerLevel;
@@ -411,14 +424,14 @@ class BluetoothGattDescriptor {
   /// 参数：
   /// - [uuid]：描述符 UUID，无默认值。
   /// - [characteristicUuid]：所属特征 UUID，默认 `null`。
-  /// - [value]：描述符初始值，默认 `const <int>[]`。
+  /// - [value]：描述符初始值，默认空 [Uint8List]。
   /// - [raw]：原生完整字段，默认 `const <String, dynamic>{}`。
-  const BluetoothGattDescriptor({
+  BluetoothGattDescriptor({
     required this.uuid,
     this.characteristicUuid,
-    this.value = const <int>[],
+    Uint8List? value,
     this.raw = const <String, dynamic>{},
-  });
+  }) : value = value ?? Uint8List(0);
 
   /// 从原生 Map 创建 GATT 描述符。
   ///
@@ -440,7 +453,7 @@ class BluetoothGattDescriptor {
   final String? characteristicUuid;
 
   /// 描述符值，默认空字节数组。
-  final List<int> value;
+  final Uint8List value;
 
   /// 原生完整字段，默认空 Map。
   final Map<String, dynamic> raw;
@@ -469,18 +482,18 @@ class BluetoothGattCharacteristic {
   ///   `notifyEncryptionRequired`、`indicateEncryptionRequired`。
   /// - [permissions]：本地 GATT Server 权限，默认 `const <String>[]`。为空时 Android/iOS/macOS
   ///   都会按可读可写处理；加密权限存在平台差异，跨平台推荐使用 `read`、`write`。
-  /// - [value]：初始值，默认 `const <int>[]`。
+  /// - [value]：初始值，默认空 [Uint8List]。
   /// - [descriptors]：描述符列表，默认 `const <BluetoothGattDescriptor>[]`。
   /// - [raw]：原生完整字段，默认 `const <String, dynamic>{}`。
-  const BluetoothGattCharacteristic({
+  BluetoothGattCharacteristic({
     required this.uuid,
     required this.serviceUuid,
     this.properties = const <String>[],
     this.permissions = const <String>[],
-    this.value = const <int>[],
+    Uint8List? value,
     this.descriptors = const <BluetoothGattDescriptor>[],
     this.raw = const <String, dynamic>{},
-  });
+  }) : value = value ?? Uint8List(0);
 
   /// 从原生 Map 创建 GATT 特征。
   ///
@@ -515,7 +528,7 @@ class BluetoothGattCharacteristic {
   final List<String> permissions;
 
   /// 特征值，默认空字节数组。
-  final List<int> value;
+  final Uint8List value;
 
   /// 描述符列表，默认空列表。
   final List<BluetoothGattDescriptor> descriptors;
@@ -698,7 +711,7 @@ class BluetoothCharacteristicValue {
   final String characteristicUuid;
 
   /// 特征值字节数组。
-  final List<int> value;
+  final Uint8List value;
 }
 
 /// GATT 描述符值事件。
@@ -746,7 +759,7 @@ class BluetoothDescriptorValue {
   final String descriptorUuid;
 
   /// 描述符值字节数组。
-  final List<int> value;
+  final Uint8List value;
 }
 
 /// RSSI 读取事件。
@@ -1007,8 +1020,8 @@ class BluetoothAdvertisementData {
   /// - [includeDeviceName]：是否包含适配器设备名，默认 `false`；Android 支持，iOS/macOS 忽略。
   /// - [includeTxPowerLevel]：是否包含发射功率，默认 `false`；Android 支持，iOS/macOS 忽略。
   /// - [serviceUuids]：广播服务 UUID，默认 `const <String>[]`。跨平台推荐只放必要服务。
-  /// - [manufacturerData]：厂商数据，默认 `const <int, List<int>>{}`；Android 支持，iOS/macOS 当前忽略。
-  /// - [serviceData]：服务数据，默认 `const <String, List<int>>{}`；Android 支持，iOS/macOS 当前忽略。
+  /// - [manufacturerData]：厂商数据，默认 `const <int, Uint8List>{}`；Android 支持，iOS/macOS 当前忽略。
+  /// - [serviceData]：服务数据，默认 `const <String, Uint8List>{}`；Android 支持，iOS/macOS 当前忽略。
   ///
   /// 推荐：传统广播数据空间有限，优先保留 [localName] 和关键 [serviceUuids]，避免同时开启
   /// [includeDeviceName] 和大量厂商数据导致 Android 广播启动失败。
@@ -1017,8 +1030,8 @@ class BluetoothAdvertisementData {
     this.includeDeviceName = false,
     this.includeTxPowerLevel = false,
     this.serviceUuids = const <String>[],
-    this.manufacturerData = const <int, List<int>>{},
-    this.serviceData = const <String, List<int>>{},
+    this.manufacturerData = const <int, Uint8List>{},
+    this.serviceData = const <String, Uint8List>{},
   });
 
   /// 广播本地名称，默认 `null`。
@@ -1034,10 +1047,10 @@ class BluetoothAdvertisementData {
   final List<String> serviceUuids;
 
   /// 厂商数据，默认空 Map；key 为 Company ID。
-  final Map<int, List<int>> manufacturerData;
+  final Map<int, Uint8List> manufacturerData;
 
   /// 服务数据，默认空 Map；key 为服务 UUID。
-  final Map<String, List<int>> serviceData;
+  final Map<String, Uint8List> serviceData;
 
   /// 转为可传给原生端的 Map。
   ///
@@ -1147,11 +1160,11 @@ class BluetoothGattServerRequest {
   /// - [descriptorUuid]：描述符 UUID，默认 `null`。
   /// - [requestId]：Android GATT 请求 ID，默认 `null`；iOS/macOS 通常为空。
   /// - [offset]：读写偏移，默认 `0`。
-  /// - [value]：请求或响应字节数组，默认 `const <int>[]`。
+  /// - [value]：请求或响应字节数组，默认空 [Uint8List]。
   /// - [preparedWrite]：是否 prepared write，默认 `false`；主要 Android 有意义。
   /// - [responseNeeded]：是否需要响应，默认 `false`。
   /// - [raw]：原生完整字段，默认 `const <String, dynamic>{}`。
-  const BluetoothGattServerRequest({
+  BluetoothGattServerRequest({
     required this.event,
     required this.deviceId,
     this.serviceUuid,
@@ -1159,11 +1172,11 @@ class BluetoothGattServerRequest {
     this.descriptorUuid,
     this.requestId,
     this.offset = 0,
-    this.value = const <int>[],
+    Uint8List? value,
     this.preparedWrite = false,
     this.responseNeeded = false,
     this.raw = const <String, dynamic>{},
-  });
+  }) : value = value ?? Uint8List(0);
 
   /// 从原生 Map 创建 GATT Server 请求事件。
   ///
@@ -1207,7 +1220,7 @@ class BluetoothGattServerRequest {
   final int offset;
 
   /// 请求或响应字节数组，默认空列表。
-  final List<int> value;
+  final Uint8List value;
 
   /// 是否 prepared write，默认 `false`。
   final bool preparedWrite;
@@ -1324,5 +1337,5 @@ class BluetoothClassicDataEvent {
   final String deviceId;
 
   /// 收到的字节数组。
-  final List<int> value;
+  final Uint8List value;
 }

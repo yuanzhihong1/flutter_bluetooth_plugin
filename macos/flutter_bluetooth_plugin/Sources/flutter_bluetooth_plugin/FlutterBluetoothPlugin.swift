@@ -1047,7 +1047,7 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     let localName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
     let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data
     let serviceData = advertisementData[CBAdvertisementDataServiceDataKey] as? [CBUUID: Data] ?? [:]
-    let serviceDataMap = serviceData.reduce(into: [String: [Int]]()) { partial, item in
+    let serviceDataMap = serviceData.reduce(into: [String: FlutterStandardTypedData]()) { partial, item in
       partial[item.key.uuidString] = byteList(item.value)
     }
 
@@ -1114,6 +1114,9 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
   }
 
   private func byteArray(_ value: Any?) -> [UInt8] {
+    if let typedData = value as? FlutterStandardTypedData { return Array(typedData.data) }
+    if let data = value as? Data { return Array(data) }
+    if let data = value as? NSData { return Array(data as Data) }
     guard let list = value as? [Any] else { return [] }
     return list.compactMap { item in
       if let number = item as? NSNumber { return number.uint8Value }
@@ -1122,9 +1125,8 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     }
   }
 
-  private func byteList(_ data: Data?) -> [Int] {
-    guard let data = data else { return [] }
-    return data.map { Int($0) }
+  private func byteList(_ data: Data?) -> FlutterStandardTypedData {
+    return FlutterStandardTypedData(bytes: data ?? Data())
   }
 
   private func boolValue(_ value: Any?) -> Bool? {
@@ -1138,11 +1140,15 @@ public class FlutterBluetoothPlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     return nil
   }
 
-  private func descriptorValueBytes(_ value: Any?) -> [Int] {
+  private func descriptorValueBytes(_ value: Any?) -> FlutterStandardTypedData {
     if let data = value as? Data { return byteList(data) }
-    if let string = value as? String { return Array(string.utf8).map { Int($0) } }
-    if let number = value as? NSNumber { return [number.intValue] }
-    return []
+    if let data = value as? NSData { return byteList(data as Data) }
+    if let typedData = value as? FlutterStandardTypedData { return typedData }
+    if let string = value as? String { return byteList(Data(string.utf8)) }
+    if let number = value as? NSNumber {
+      return byteList(Data([UInt8(truncatingIfNeeded: number.uint64Value)]))
+    }
+    return byteList(nil)
   }
 
   private func characteristicKey(_ deviceId: String, _ serviceUuid: String, _ characteristicUuid: String) -> String {

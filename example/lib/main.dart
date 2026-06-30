@@ -94,8 +94,8 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
   List<BluetoothGattService> _services = <BluetoothGattService>[];
   BluetoothGattCharacteristic? _selectedCharacteristic;
   BluetoothGattDescriptor? _selectedDescriptor;
-  List<int> _lastCharacteristicValue = <int>[];
-  List<int> _lastDescriptorValue = <int>[];
+  Uint8List _lastCharacteristicValue = Uint8List(0);
+  Uint8List _lastDescriptorValue = Uint8List(0);
   int? _lastRssi;
   int? _lastMtu;
   BluetoothPhyEvent? _lastPhy;
@@ -1201,7 +1201,7 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
     final CharacteristicTarget? target = _characteristicTarget();
     if (target == null) return;
     await _guard('读取特征', () async {
-      final List<int> value = await _bluetooth.readCharacteristic(
+      final Uint8List value = await _bluetooth.readCharacteristic(
         deviceId: target.deviceId,
         serviceUuid: target.characteristic.serviceUuid,
         characteristicUuid: target.characteristic.uuid,
@@ -1251,7 +1251,7 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
     final DescriptorTarget? target = _descriptorTarget();
     if (target == null) return;
     await _guard('读取描述符', () async {
-      final List<int> value = await _bluetooth.readDescriptor(
+      final Uint8List value = await _bluetooth.readDescriptor(
         deviceId: target.deviceId,
         serviceUuid: target.characteristic.serviceUuid,
         characteristicUuid: target.characteristic.uuid,
@@ -1361,7 +1361,7 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
 
   Future<void> _setSampleGattServer() async {
     await _guard('安装示例 GATT 服务', () async {
-      await _bluetooth.setGattServerServices(const <BluetoothGattService>[
+      await _bluetooth.setGattServerServices(<BluetoothGattService>[
         BluetoothGattService(
           uuid: _sampleServiceUuid,
           characteristics: <BluetoothGattCharacteristic>[
@@ -1375,12 +1375,12 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
                 'notify',
               ],
               permissions: <String>['read', 'write'],
-              value: <int>[72, 101, 108, 108, 111],
+              value: Uint8List.fromList(<int>[72, 101, 108, 108, 111]),
               descriptors: <BluetoothGattDescriptor>[
                 BluetoothGattDescriptor(
                   uuid: '00002901-0000-1000-8000-00805f9b34fb',
                   characteristicUuid: _sampleCharacteristicUuid,
-                  value: <int>[83, 97, 109, 112, 108, 101],
+                  value: Uint8List.fromList(<int>[83, 97, 109, 112, 108, 101]),
                 ),
               ],
             ),
@@ -1400,18 +1400,18 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
           serviceUuids: <String>[_sampleServiceUuid],
           includeDeviceName: true,
           includeTxPowerLevel: true,
-          manufacturerData: const <int, List<int>>{
-            0xffff: <int>[0x46, 0x42],
+          manufacturerData: <int, Uint8List>{
+            0xffff: Uint8List.fromList(<int>[0x46, 0x42]),
           },
-          serviceData: const <String, List<int>>{
-            _sampleServiceUuid: <int>[0x01, 0x02],
+          serviceData: <String, Uint8List>{
+            _sampleServiceUuid: Uint8List.fromList(<int>[0x01, 0x02]),
           },
         ),
-        scanResponse: const BluetoothAdvertisementData(
+        scanResponse: BluetoothAdvertisementData(
           localName: 'Flutter 蓝牙测试',
           serviceUuids: <String>[_sampleServiceUuid],
-          manufacturerData: <int, List<int>>{
-            0xffff: <int>[0x54, 0x45, 0x53, 0x54],
+          manufacturerData: <int, Uint8List>{
+            0xffff: Uint8List.fromList(<int>[0x54, 0x45, 0x53, 0x54]),
           },
         ),
         settings: const BluetoothAdvertisingSettings(
@@ -1434,7 +1434,7 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
 
   Future<void> _notifySampleCharacteristic({bool confirm = false}) async {
     await _guard(confirm ? '指示示例特征' : '通知示例特征', () async {
-      final List<int> value = _parseBytes(_writeController.text);
+      final Uint8List value = _parseBytes(_writeController.text);
       await _bluetooth.updateLocalCharacteristicValue(
         serviceUuid: _sampleServiceUuid,
         characteristicUuid: _sampleCharacteristicUuid,
@@ -1736,9 +1736,9 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
     return device.name?.isNotEmpty == true ? device.name! : device.id;
   }
 
-  List<int> _parseBytes(String text) {
+  Uint8List _parseBytes(String text) {
     final String trimmed = text.trim();
-    if (trimmed.isEmpty) return <int>[];
+    if (trimmed.isEmpty) return Uint8List(0);
 
     final RegExp hexLike = RegExp(
       r'^(0x)?[0-9a-fA-F]{2}([\s,;:\-]*[0-9a-fA-F]{2})*$',
@@ -1747,15 +1747,15 @@ class _BluetoothTesterPageState extends State<BluetoothTesterPage> {
       final String hex = trimmed
           .replaceFirst(RegExp(r'^0x'), '')
           .replaceAll(RegExp(r'[^0-9a-fA-F]'), '');
-      return <int>[
+      return Uint8List.fromList(<int>[
         for (int index = 0; index < hex.length; index += 2)
           int.parse(hex.substring(index, index + 2), radix: 16),
-      ];
+      ]);
     }
-    return utf8.encode(text);
+    return Uint8List.fromList(utf8.encode(text));
   }
 
-  String _bytesPreview(List<int> bytes) {
+  String _bytesPreview(Uint8List bytes) {
     if (bytes.isEmpty) return '<空>';
     final String hex = bytes
         .map((int byte) => byte.toRadixString(16).padLeft(2, '0'))

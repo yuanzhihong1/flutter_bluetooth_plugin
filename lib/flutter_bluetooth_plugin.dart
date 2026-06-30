@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'flutter_bluetooth_plugin_models.dart';
 import 'flutter_bluetooth_plugin_platform_interface.dart';
 
@@ -281,7 +283,7 @@ class FlutterBluetoothPlugin {
   /// - [serviceUuid]：服务 UUID，无默认值。
   /// - [characteristicUuid]：特征 UUID，无默认值。Linux 使用 BlueZ `ReadValue`；Web 要求
   ///   [serviceUuid] 已在设备选择时授权。
-  Future<List<int>> readCharacteristic({
+  Future<Uint8List> readCharacteristic({
     required String deviceId,
     required String serviceUuid,
     required String characteristicUuid,
@@ -309,7 +311,7 @@ class FlutterBluetoothPlugin {
     required String deviceId,
     required String serviceUuid,
     required String characteristicUuid,
-    required List<int> value,
+    required Uint8List value,
     BluetoothWriteType writeType = BluetoothWriteType.withResponse,
   }) {
     return _platform.writeCharacteristic(
@@ -362,7 +364,7 @@ class FlutterBluetoothPlugin {
   /// - [characteristicUuid]：特征 UUID，无默认值。
   /// - [descriptorUuid]：描述符 UUID，无默认值。Linux 使用 BlueZ `ReadValue`；Web 要求
   ///   [serviceUuid] 已在设备选择时授权。
-  Future<List<int>> readDescriptor({
+  Future<Uint8List> readDescriptor({
     required String deviceId,
     required String serviceUuid,
     required String characteristicUuid,
@@ -390,7 +392,7 @@ class FlutterBluetoothPlugin {
     required String serviceUuid,
     required String characteristicUuid,
     required String descriptorUuid,
-    required List<int> value,
+    required Uint8List value,
   }) {
     return _platform.writeDescriptor(
       deviceId: deviceId,
@@ -612,7 +614,7 @@ class FlutterBluetoothPlugin {
   Future<void> updateLocalCharacteristicValue({
     required String serviceUuid,
     required String characteristicUuid,
-    required List<int> value,
+    required Uint8List value,
   }) {
     return _platform.updateLocalCharacteristicValue(
       serviceUuid: serviceUuid,
@@ -636,7 +638,7 @@ class FlutterBluetoothPlugin {
     String? deviceId,
     required String serviceUuid,
     required String characteristicUuid,
-    required List<int> value,
+    required Uint8List value,
     bool confirm = false,
   }) {
     return _platform.notifyGattServerCharacteristic(
@@ -728,7 +730,7 @@ class FlutterBluetoothPlugin {
   ///
   /// 平台差异：仅 Android 实现；iOS/macOS/Linux/Windows 会返回 `unsupported` 错误；Web
   /// 会抛出 UnsupportedError。
-  Future<void> writeClassic(String deviceId, List<int> value) {
+  Future<void> writeClassic(String deviceId, Uint8List value) {
     return _platform.writeClassic(deviceId, value);
   }
 

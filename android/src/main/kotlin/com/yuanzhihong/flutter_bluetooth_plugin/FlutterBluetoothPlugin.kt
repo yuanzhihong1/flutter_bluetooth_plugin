@@ -534,14 +534,14 @@ class FlutterBluetoothPlugin :
             return
         }
         val record = result.scanRecord
-        val manufacturerData = mutableMapOf<String, List<Int>>()
+        val manufacturerData = mutableMapOf<String, ByteArray>()
         record?.manufacturerSpecificData?.let { data ->
             for (index in 0 until data.size()) {
-                manufacturerData[data.keyAt(index).toString()] = data.valueAt(index).toIntList()
+                manufacturerData[data.keyAt(index).toString()] = data.valueAt(index)
             }
         }
-        val serviceData = mutableMapOf<String, List<Int>>()
-        record?.serviceData?.forEach { (uuid, bytes) -> serviceData[uuid.uuid.toString()] = bytes.toIntList() }
+        val serviceData = mutableMapOf<String, ByteArray>()
+        record?.serviceData?.forEach { (uuid, bytes) -> serviceData[uuid.uuid.toString()] = bytes }
         sendEvent(
             mapOf(
                 "type" to "scanResult",
@@ -580,8 +580,8 @@ class FlutterBluetoothPlugin :
                 "rssi" to if (rssi == Short.MIN_VALUE.toInt()) 0 else rssi,
                 "localName" to device.safeName(),
                 "serviceUuids" to emptyList<String>(),
-                "manufacturerData" to emptyMap<String, List<Int>>(),
-                "serviceData" to emptyMap<String, List<Int>>(),
+                "manufacturerData" to emptyMap<String, ByteArray>(),
+                "serviceData" to emptyMap<String, ByteArray>(),
             ),
         )
     }
@@ -777,7 +777,7 @@ class FlutterBluetoothPlugin :
         val gatt = gatts[request.deviceId] ?: return result.error("not_connected", "Device is not connected.", null)
         val characteristic = findCharacteristic(gatt, request.serviceUuid, request.characteristicUuid)
             ?: return result.error("characteristic_not_found", "Characteristic was not found. Discover services first.", null)
-        val value = call.argument<List<Int>>("value")?.toByteArray() ?: ByteArray(0)
+        val value = byteArrayArg(call.argument<Any>("value"))
         val writeType = if (call.argument<String>("writeType") == "withoutResponse") {
             BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
         } else {
@@ -858,7 +858,7 @@ class FlutterBluetoothPlugin :
         val descriptor = findDescriptor(gatt, request)
             ?: return result.error("descriptor_not_found", "Descriptor was not found. Discover services first.", null)
         val key = descriptorKey(request.deviceId, request.serviceUuid, request.characteristicUuid, request.descriptorUuid)
-        val value = call.argument<List<Int>>("value")?.toByteArray() ?: ByteArray(0)
+        val value = byteArrayArg(call.argument<Any>("value"))
         pendingDescriptorWrites[key] = result
         if (!writeDescriptorCompat(gatt, descriptor, value)) {
             pendingDescriptorWrites.remove(key)
@@ -1164,7 +1164,7 @@ class FlutterBluetoothPlugin :
         val key = characteristicKey(deviceId, characteristic.service.uuid.toString(), characteristic.uuid.toString())
         val result = pendingCharacteristicReads.remove(key) ?: return
         if (status == BluetoothGatt.GATT_SUCCESS) {
-            result.success(value.toIntList())
+            result.success(value)
             sendCharacteristicValue(deviceId, characteristic, value)
         } else {
             result.error("read_failed", "Characteristic read failed with status $status.", status)
@@ -1189,7 +1189,7 @@ class FlutterBluetoothPlugin :
         val key = descriptorKey(deviceId, characteristic.service.uuid.toString(), characteristic.uuid.toString(), descriptor.uuid.toString())
         val result = pendingDescriptorReads.remove(key) ?: return
         if (status == BluetoothGatt.GATT_SUCCESS) {
-            result.success(value.toIntList())
+            result.success(value)
             sendDescriptorValue(deviceId, descriptor, value)
         } else {
             result.error("descriptor_read_failed", "Descriptor read failed with status $status.", status)
@@ -1223,7 +1223,7 @@ class FlutterBluetoothPlugin :
                 "deviceId" to deviceId,
                 "serviceUuid" to characteristic.service.uuid.toString(),
                 "characteristicUuid" to characteristic.uuid.toString(),
-                "value" to value.toIntList(),
+                "value" to value,
             ),
         )
     }
@@ -1241,7 +1241,7 @@ class FlutterBluetoothPlugin :
                 "serviceUuid" to characteristic.service.uuid.toString(),
                 "characteristicUuid" to characteristic.uuid.toString(),
                 "descriptorUuid" to descriptor.uuid.toString(),
-                "value" to value.toIntList(),
+                "value" to value,
             ),
         )
     }
@@ -1410,10 +1410,10 @@ class FlutterBluetoothPlugin :
         }
         (raw?.get("manufacturerData") as? Map<*, *>)?.forEach { (key, value) ->
             val id = key.toString().toIntOrNull()
-            if (id != null) builder.addManufacturerData(id, (value as? List<Int>)?.toByteArray() ?: ByteArray(0))
+            if (id != null) builder.addManufacturerData(id, byteArrayArg(value))
         }
         (raw?.get("serviceData") as? Map<*, *>)?.forEach { (key, value) ->
-            builder.addServiceData(ParcelUuid(normalizeUuid(key.toString())), (value as? List<Int>)?.toByteArray() ?: ByteArray(0))
+            builder.addServiceData(ParcelUuid(normalizeUuid(key.toString())), byteArrayArg(value))
         }
         return builder.build()
     }
@@ -1475,7 +1475,7 @@ class FlutterBluetoothPlugin :
         val properties = androidCharacteristicProperties(map["properties"] as? List<*>)
         val permissions = androidAttributePermissions(map["permissions"] as? List<*>)
         val characteristic = BluetoothGattCharacteristic(uuid, properties, permissions)
-        val value = (map["value"] as? List<Int>)?.toByteArray() ?: ByteArray(0)
+        val value = byteArrayArg(map["value"])
         localCharacteristicValues[characteristicKey("local", serviceUuid, uuid.toString())] = value
         val descriptors = map["descriptors"] as? List<*> ?: emptyList<Any?>()
         descriptors.forEach { item ->
@@ -1483,7 +1483,7 @@ class FlutterBluetoothPlugin :
             val descriptorUuid = normalizeUuid(descriptorMap["uuid"].toString())
             val descriptor = BluetoothGattDescriptor(descriptorUuid, permissions)
             @Suppress("DEPRECATION")
-            descriptor.value = (descriptorMap["value"] as? List<Int>)?.toByteArray() ?: ByteArray(0)
+            descriptor.value = byteArrayArg(descriptorMap["value"])
             localDescriptorValues[descriptorKey("local", serviceUuid, uuid.toString(), descriptorUuid.toString())] =
                 descriptor.value ?: ByteArray(0)
             characteristic.addDescriptor(descriptor)
@@ -1525,7 +1525,7 @@ class FlutterBluetoothPlugin :
     ) {
         val serviceUuid = call.argument<String>("serviceUuid") ?: return result.error("invalid_arguments", "serviceUuid is required.", null)
         val characteristicUuid = call.argument<String>("characteristicUuid") ?: return result.error("invalid_arguments", "characteristicUuid is required.", null)
-        val value = call.argument<List<Int>>("value")?.toByteArray() ?: ByteArray(0)
+        val value = byteArrayArg(call.argument<Any>("value"))
         localCharacteristicValues[characteristicKey("local", serviceUuid, characteristicUuid)] = value
         findLocalCharacteristic(serviceUuid, characteristicUuid)?.let {
             @Suppress("DEPRECATION")
@@ -1543,7 +1543,7 @@ class FlutterBluetoothPlugin :
         val characteristicUuid = call.argument<String>("characteristicUuid") ?: return result.error("invalid_arguments", "characteristicUuid is required.", null)
         val characteristic = findLocalCharacteristic(serviceUuid, characteristicUuid)
             ?: return result.error("characteristic_not_found", "Local characteristic was not found.", null)
-        val value = call.argument<List<Int>>("value")?.toByteArray() ?: ByteArray(0)
+        val value = byteArrayArg(call.argument<Any>("value"))
         val confirm = call.argument<Boolean>("confirm") ?: false
         @Suppress("DEPRECATION")
         characteristic.value = value
@@ -1712,7 +1712,7 @@ class FlutterBluetoothPlugin :
                 "descriptorUuid" to descriptor?.uuid?.toString(),
                 "requestId" to requestId,
                 "offset" to offset,
-                "value" to value.toIntList(),
+                "value" to value,
                 "preparedWrite" to preparedWrite,
                 "responseNeeded" to responseNeeded,
             ).withoutNullValues(),
@@ -1812,7 +1812,7 @@ class FlutterBluetoothPlugin :
         result: Result,
     ) {
         val deviceId = call.argument<String>("deviceId") ?: return result.error("invalid_arguments", "deviceId is required.", null)
-        val value = call.argument<List<Int>>("value")?.toByteArray() ?: ByteArray(0)
+        val value = byteArrayArg(call.argument<Any>("value"))
         val socket = classicSockets[deviceId] ?: return result.error("not_connected", "Classic socket is not connected.", null)
         thread(name = "flutter-bt-classic-write-$deviceId") {
             try {
@@ -1836,7 +1836,7 @@ class FlutterBluetoothPlugin :
                 while (classicSockets[deviceId] == socket) {
                     val count = socket.inputStream.read(buffer)
                     if (count < 0) break
-                    sendEvent(mapOf("type" to "classicData", "deviceId" to deviceId, "value" to buffer.copyOf(count).toIntList()))
+                    sendEvent(mapOf("type" to "classicData", "deviceId" to deviceId, "value" to buffer.copyOf(count)))
                 }
             } catch (error: Exception) {
                 sendClassicConnection(deviceId, "disconnected", error.message)
@@ -1966,7 +1966,7 @@ class FlutterBluetoothPlugin :
         return mapOf(
             "uuid" to descriptor.uuid.toString(),
             "characteristicUuid" to characteristic.uuid.toString(),
-            "value" to (descriptor.value?.toIntList() ?: emptyList<Int>()),
+            "value" to (descriptor.value ?: ByteArray(0)),
         )
     }
 
@@ -2108,9 +2108,14 @@ class FlutterBluetoothPlugin :
         return runCatching { name }.getOrNull()
     }
 
-    private fun ByteArray.toIntList(): List<Int> = map { it.toInt() and 0xFF }
-
-    private fun List<Int>.toByteArray(): ByteArray = map { it.toByte() }.toByteArray()
+    private fun byteArrayArg(value: Any?): ByteArray {
+        return when (value) {
+            is ByteArray -> value
+            is IntArray -> value.map { it.toByte() }.toByteArray()
+            is List<*> -> value.mapNotNull { (it as? Number)?.toByte() }.toByteArray()
+            else -> ByteArray(0)
+        }
+    }
 
     private fun <T> Map<String, T?>.withoutNullValues(): Map<String, T> {
         return entries.mapNotNull { entry -> entry.value?.let { entry.key to it } }.toMap()

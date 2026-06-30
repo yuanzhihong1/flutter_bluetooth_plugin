@@ -473,7 +473,7 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
   ///
   /// Web 要求服务 UUID 已在设备选择时授权。
   @override
-  Future<List<int>> readCharacteristic({
+  Future<Uint8List> readCharacteristic({
     required String deviceId,
     required String serviceUuid,
     required String characteristicUuid,
@@ -503,7 +503,7 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
     required String deviceId,
     required String serviceUuid,
     required String characteristicUuid,
-    required List<int> value,
+    required Uint8List value,
     BluetoothWriteType writeType = BluetoothWriteType.withResponse,
   }) async {
     final characteristic = await _characteristic(
@@ -511,7 +511,7 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
       serviceUuid: serviceUuid,
       characteristicUuid: characteristicUuid,
     );
-    final data = Uint8List.fromList(value).toJS;
+    final data = value.toJS;
     final object = characteristic as JSObject;
     if (writeType == BluetoothWriteType.withoutResponse &&
         object.has('writeValueWithoutResponse')) {
@@ -590,7 +590,7 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
   ///
   /// Web 要求服务 UUID 已在设备选择时授权。
   @override
-  Future<List<int>> readDescriptor({
+  Future<Uint8List> readDescriptor({
     required String deviceId,
     required String serviceUuid,
     required String characteristicUuid,
@@ -624,7 +624,7 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
     required String serviceUuid,
     required String characteristicUuid,
     required String descriptorUuid,
-    required List<int> value,
+    required Uint8List value,
   }) async {
     final descriptor = await _descriptor(
       deviceId: deviceId,
@@ -632,14 +632,14 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
       characteristicUuid: characteristicUuid,
       descriptorUuid: descriptorUuid,
     );
-    await descriptor.writeValue(Uint8List.fromList(value).toJS).toDart;
+    await descriptor.writeValue(value.toJS).toDart;
     _descriptorValuesController.add(
       BluetoothDescriptorValue(
         deviceId: deviceId,
         serviceUuid: serviceUuid,
         characteristicUuid: characteristicUuid,
         descriptorUuid: descriptorUuid,
-        value: List<int>.unmodifiable(value),
+        value: value,
       ),
     );
   }
@@ -812,7 +812,7 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
   Future<void> updateLocalCharacteristicValue({
     required String serviceUuid,
     required String characteristicUuid,
-    required List<int> value,
+    required Uint8List value,
   }) {
     throw UnsupportedError(
         'GATT server APIs are not supported by Web Bluetooth.');
@@ -826,7 +826,7 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
     String? deviceId,
     required String serviceUuid,
     required String characteristicUuid,
-    required List<int> value,
+    required Uint8List value,
     bool confirm = false,
   }) async {
     return false;
@@ -881,7 +881,7 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
   ///
   /// Web Bluetooth 不支持 Classic Bluetooth/RFCOMM。
   @override
-  Future<void> writeClassic(String deviceId, List<int> value) {
+  Future<void> writeClassic(String deviceId, Uint8List value) {
     throw UnsupportedError('Classic Bluetooth is not supported on web.');
   }
 
@@ -1198,16 +1198,16 @@ class FlutterBluetoothPluginWeb extends FlutterBluetoothPluginPlatform {
     return result;
   }
 
-  List<int> _bytesFromDataView(JSDataView? value) {
+  Uint8List _bytesFromDataView(JSDataView? value) {
     if (value == null) {
-      return const <int>[];
+      return Uint8List(0);
     }
     final byteData = value.toDart;
     return Uint8List.view(
       byteData.buffer,
       byteData.offsetInBytes,
       byteData.lengthInBytes,
-    ).toList(growable: false);
+    );
   }
 
   void _sendConnectionState(

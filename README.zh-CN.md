@@ -64,12 +64,14 @@
 
 ```yaml
 dependencies:
-  flutter_bluetooth_plugin: ^0.0.1
+  flutter_bluetooth_plugin: ^2.0.0
 ```
 
 导入公共 API：
 
 ```dart
+import 'dart:typed_data';
+
 import 'package:flutter_bluetooth_plugin/flutter_bluetooth_plugin.dart';
 ```
 
@@ -304,7 +306,7 @@ const characteristicUuid = '0000fff1-0000-1000-8000-00805f9b34fb';
 
 if (await bluetooth.isPeripheralSupported()) {
   await bluetooth.setGattServerServices(
-    const <BluetoothGattService>[
+    <BluetoothGattService>[
       BluetoothGattService(
         uuid: serviceUuid,
         characteristics: <BluetoothGattCharacteristic>[
@@ -318,7 +320,7 @@ if (await bluetooth.isPeripheralSupported()) {
               'notify',
             ],
             permissions: <String>['read', 'write'],
-            value: <int>[72, 101, 108, 108, 111],
+            value: Uint8List.fromList(<int>[72, 101, 108, 108, 111]),
           ),
         ],
       ),
@@ -351,13 +353,13 @@ final serverSub = bluetooth.gattServerRequests.listen((event) {
 await bluetooth.updateLocalCharacteristicValue(
   serviceUuid: serviceUuid,
   characteristicUuid: characteristicUuid,
-  value: const <int>[1, 2, 3],
+  value: Uint8List.fromList(<int>[1, 2, 3]),
 );
 
 final sent = await bluetooth.notifyGattServerCharacteristic(
   serviceUuid: serviceUuid,
   characteristicUuid: characteristicUuid,
-  value: const <int>[1, 2, 3],
+  value: Uint8List.fromList(<int>[1, 2, 3]),
   confirm: false,
 );
 ```
@@ -387,7 +389,7 @@ final classicDataSub = bluetooth.classicData.listen((event) {
   print('Classic ${event.deviceId}: ${event.value}');
 });
 
-await bluetooth.writeClassic(macAddress, const <int>[1, 2, 3]);
+await bluetooth.writeClassic(macAddress, Uint8List.fromList(<int>[1, 2, 3]));
 ```
 
 ## API 分类指南

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'flutter_bluetooth_plugin_method_channel.dart';
@@ -294,7 +296,7 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
   /// - [serviceUuid]：服务 UUID，无默认值。
   /// - [characteristicUuid]：特征 UUID，无默认值。Linux 使用 BlueZ `ReadValue`；Web 要求
   ///   [serviceUuid] 已在设备选择时授权。
-  Future<List<int>> readCharacteristic({
+  Future<Uint8List> readCharacteristic({
     required String deviceId,
     required String serviceUuid,
     required String characteristicUuid,
@@ -318,7 +320,7 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
     required String deviceId,
     required String serviceUuid,
     required String characteristicUuid,
-    required List<int> value,
+    required Uint8List value,
     BluetoothWriteType writeType = BluetoothWriteType.withResponse,
   }) {
     throw UnimplementedError('writeCharacteristic() has not been implemented.');
@@ -362,7 +364,7 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
   /// - [characteristicUuid]：特征 UUID，无默认值。
   /// - [descriptorUuid]：描述符 UUID，无默认值。Linux 使用 BlueZ `ReadValue`；Web 要求
   ///   [serviceUuid] 已在设备选择时授权。
-  Future<List<int>> readDescriptor({
+  Future<Uint8List> readDescriptor({
     required String deviceId,
     required String serviceUuid,
     required String characteristicUuid,
@@ -385,7 +387,7 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
     required String serviceUuid,
     required String characteristicUuid,
     required String descriptorUuid,
-    required List<int> value,
+    required Uint8List value,
   }) {
     throw UnimplementedError('writeDescriptor() has not been implemented.');
   }
@@ -608,7 +610,7 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
   Future<void> updateLocalCharacteristicValue({
     required String serviceUuid,
     required String characteristicUuid,
-    required List<int> value,
+    required Uint8List value,
   }) {
     throw UnimplementedError(
       'updateLocalCharacteristicValue() has not been implemented.',
@@ -630,7 +632,7 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
     String? deviceId,
     required String serviceUuid,
     required String characteristicUuid,
-    required List<int> value,
+    required Uint8List value,
     bool confirm = false,
   }) {
     throw UnimplementedError(
@@ -709,7 +711,7 @@ abstract class FlutterBluetoothPluginPlatform extends PlatformInterface {
   ///
   /// 平台差异：仅 Android 实现；iOS/macOS/Linux/Windows 会返回 `unsupported` 错误；Web
   /// 会抛出 UnsupportedError。
-  Future<void> writeClassic(String deviceId, List<int> value) {
+  Future<void> writeClassic(String deviceId, Uint8List value) {
     throw UnimplementedError('writeClassic() has not been implemented.');
   }
 

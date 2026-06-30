@@ -294,17 +294,19 @@ class MethodChannelFlutterBluetoothPlugin
   ///
   /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
-  Future<List<int>> readCharacteristic({
+  Future<Uint8List> readCharacteristic({
     required String deviceId,
     required String serviceUuid,
     required String characteristicUuid,
   }) async {
-    final response = await methodChannel
-        .invokeListMethod<dynamic>('readCharacteristic', <String, dynamic>{
-      'deviceId': deviceId,
-      'serviceUuid': serviceUuid,
-      'characteristicUuid': characteristicUuid,
-    });
+    final response = await methodChannel.invokeMethod<Object?>(
+      'readCharacteristic',
+      <String, dynamic>{
+        'deviceId': deviceId,
+        'serviceUuid': serviceUuid,
+        'characteristicUuid': characteristicUuid,
+      },
+    );
     return _byteListFromPlatform(response);
   }
 
@@ -316,7 +318,7 @@ class MethodChannelFlutterBluetoothPlugin
     required String deviceId,
     required String serviceUuid,
     required String characteristicUuid,
-    required List<int> value,
+    required Uint8List value,
     BluetoothWriteType writeType = BluetoothWriteType.withResponse,
   }) async {
     await methodChannel
@@ -362,19 +364,21 @@ class MethodChannelFlutterBluetoothPlugin
   ///
   /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
-  Future<List<int>> readDescriptor({
+  Future<Uint8List> readDescriptor({
     required String deviceId,
     required String serviceUuid,
     required String characteristicUuid,
     required String descriptorUuid,
   }) async {
-    final response = await methodChannel
-        .invokeListMethod<dynamic>('readDescriptor', <String, dynamic>{
-      'deviceId': deviceId,
-      'serviceUuid': serviceUuid,
-      'characteristicUuid': characteristicUuid,
-      'descriptorUuid': descriptorUuid,
-    });
+    final response = await methodChannel.invokeMethod<Object?>(
+      'readDescriptor',
+      <String, dynamic>{
+        'deviceId': deviceId,
+        'serviceUuid': serviceUuid,
+        'characteristicUuid': characteristicUuid,
+        'descriptorUuid': descriptorUuid,
+      },
+    );
     return _byteListFromPlatform(response);
   }
 
@@ -387,7 +391,7 @@ class MethodChannelFlutterBluetoothPlugin
     required String serviceUuid,
     required String characteristicUuid,
     required String descriptorUuid,
-    required List<int> value,
+    required Uint8List value,
   }) async {
     await methodChannel.invokeMethod<void>('writeDescriptor', <String, dynamic>{
       'deviceId': deviceId,
@@ -634,7 +638,7 @@ class MethodChannelFlutterBluetoothPlugin
   Future<void> updateLocalCharacteristicValue({
     required String serviceUuid,
     required String characteristicUuid,
-    required List<int> value,
+    required Uint8List value,
   }) async {
     await methodChannel
         .invokeMethod<void>('updateLocalCharacteristicValue', <String, dynamic>{
@@ -652,7 +656,7 @@ class MethodChannelFlutterBluetoothPlugin
     String? deviceId,
     required String serviceUuid,
     required String characteristicUuid,
-    required List<int> value,
+    required Uint8List value,
     bool confirm = false,
   }) async {
     return await methodChannel.invokeMethod<bool>(
@@ -738,7 +742,7 @@ class MethodChannelFlutterBluetoothPlugin
   ///
   /// 参数、默认值、平台差异和推荐值见平台接口文档。
   @override
-  Future<void> writeClassic(String deviceId, List<int> value) async {
+  Future<void> writeClassic(String deviceId, Uint8List value) async {
     await methodChannel.invokeMethod<void>('writeClassic', <String, dynamic>{
       'deviceId': deviceId,
       'value': value,
@@ -780,10 +784,25 @@ class MethodChannelFlutterBluetoothPlugin
         .toList(growable: false);
   }
 
-  List<int> _byteListFromPlatform(List<dynamic>? response) {
-    return (response ?? const <dynamic>[])
-        .map((item) => (item as num).toInt())
-        .toList(growable: false);
+  Uint8List _byteListFromPlatform(Object? response) {
+    if (response == null) {
+      return Uint8List(0);
+    }
+    if (response is Uint8List) {
+      return response;
+    }
+    if (response is ByteData) {
+      return response.buffer.asUint8List(
+        response.offsetInBytes,
+        response.lengthInBytes,
+      );
+    }
+    if (response is List<int>) {
+      return Uint8List.fromList(response);
+    }
+    return Uint8List.fromList(
+      (response as List<dynamic>).map((item) => (item as num).toInt()).toList(),
+    );
   }
 
   Map<String, dynamic> _asStringMap(Object? value) {
